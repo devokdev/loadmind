@@ -1,0 +1,112 @@
+version: '3.8'
+
+networks:
+  loadmind-network:
+    name: loadmind-network
+    driver: bridge
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: loadmind-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: loadmind
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - loadmind-network
+
+  chromadb:
+    image: chromadb/chroma:0.4.15
+    container_name: loadmind-chromadb
+    ports:
+      - "8003:8000"
+    volumes:
+      - chromadb_data:/chroma/data
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/data
+    networks:
+      - loadmind-network
+
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: loadmind-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - loadmind-network
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.0
+    container_name: cadvisor
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "8085:8080"
+    networks:
+      - loadmind-network
+
+  locust:
+    image: locustio/locust:2.15.1
+    container_name: loadmind-locust
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./locust:/mnt/locust
+    command: -f /mnt/locust/locustfile.py
+    networks:
+      - loadmind-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: loadmind-backend
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/loadmind
+      - TARGET_DATABASE_URL=postgresql://postgres:postgres@target-postgres:5432/target_db
+      - TARGET_APP_URL=http://target-app:8000
+      - CHROMADB_HOST=chromadb
+      - CHROMADB_PORT=8000
+      - PROMETHEUS_URL=http://prometheus:9090
+      - LOCUST_URL=http://locust:8089
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./target-app:/target-app
+    depends_on:
+      - postgres
+      - chromadb
+    networks:
+      - loadmind-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: loadmind-frontend
+    ports:
+      - "8080:80"
+    networks:
+      - loadmind-network
+
+
+volumes:
+  postgres_data:
+  chromadb_data:

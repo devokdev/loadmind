@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  target-postgres:
+    image: postgres:15-alpine
+    container_name: target-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: target_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - target_postgres_data:/var/lib/postgresql/data
+    networks:
+      - loadmind-network
+
+  target-app:
+    build:
+      context: ./target-app
+      dockerfile: Dockerfile
+    container_name: target-app
+    ports:
+      - "8002:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@target-postgres:5432/target_db
+      - FAILURE_MODE=none
+    depends_on:
+      - target-postgres
+    networks:
+      - loadmind-network
+
+networks:
+  loadmind-network:
+    external: true
+
+volumes:
+  target_postgres_data:
