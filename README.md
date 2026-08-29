@@ -19,7 +19,7 @@ The platform consists of several core components deployed via Docker Compose:
 
 - [Docker](https://docs.docker.com/get-docker/)
 - [Docker Compose](https://docs.docker.com/compose/install/)
-- Gemini API Key (for AI-powered insights)
+- [Groq API Key](https://console.groq.com/) (Ultra-fast, cost-effective inference with `groq/compound-mini` / `qwen/qwen3.6-27b`)
 
 ## Getting Started
 
@@ -30,9 +30,10 @@ The platform consists of several core components deployed via Docker Compose:
    ```
 
 2. **Set up environment variables**:
-   Create a `.env` file in the root directory (or export the variable) with your Gemini API key:
+   Create a `.env` file in the root directory (or export the variables) with your Groq API key:
    ```env
-   GEMINI_API_KEY=your_gemini_api_key_here
+   GROQ_API_KEY=your_groq_api_key_here
+   GROQ_MODEL=groq/compound-mini
    ```
 
 3. **Start the application**:
@@ -40,6 +41,7 @@ The platform consists of several core components deployed via Docker Compose:
    ```bash
    docker-compose up --build
    ```
+
 
 4. **Access the services**:
    - Frontend UI: http://localhost:8080
