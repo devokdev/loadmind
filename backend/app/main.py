@@ -134,11 +134,13 @@ async def run_universal_stress_test(experiment_id: int, req_data: schemas.Experi
     # 1. Resolve host network address for containerized backend
     if "localhost:8002" in target_url or "127.0.0.1:8002" in target_url:
         target_url = target_url.replace("localhost:8002", "target-app:8000").replace("127.0.0.1:8002", "target-app:8000")
+    elif "target-app:8002" in target_url:
+        target_url = target_url.replace("target-app:8002", "target-app:8000")
         
     # Inject failure mode into target app if testing target-app
     if "target-app" in target_url:
         docker_service.set_target_failure_mode(failure_mode)
-        await asyncio.sleep(1.0)
+        await asyncio.sleep(0.5)
 
 
     # 2. Concurrency step stages
