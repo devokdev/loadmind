@@ -86,7 +86,8 @@ services:
       - CHROMADB_PORT=8000
       - PROMETHEUS_URL=http://prometheus:9090
       - LOCUST_URL=http://locust:8089
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=${GROQ_MODEL}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./target-app:/target-app

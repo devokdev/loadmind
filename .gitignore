@@ -16,5 +16,7 @@ ENV/
 
 # Docker volumes / persistence / logs
 *.log
+*.db
 .DS_Store
 Thumbs.db
+

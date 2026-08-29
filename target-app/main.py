@@ -19,7 +19,7 @@ app = FastAPI(title="LoadMind Target Application")
 Instrumentator().instrument(app).expose(app)
 
 # Global variables for dynamic failure modes
-CURRENT_FAILURE_MODE = os.getenv("FAILURE_MODE", "none")
+CURRENT_FAILURE_MODE = "none"
 UNBOUNDED_CACHE = []
 
 @app.on_event("startup")

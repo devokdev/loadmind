@@ -3,33 +3,117 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LoadMind — Autonomous Resilience Control Center</title>
+    <title>LoadMind — Autonomous Stress Testing & Self-Learning Platform</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & ReactDOM -->
-    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg-base: #0f1117;
+            --surface-1: #161821;
+            --surface-2: #1e212b;
+            --surface-3: #262a36;
+            --border-subtle: #2b303d;
+            --border-highlight: #3c4254;
+            --text-primary: #e4e7ec;
+            --text-secondary: #9499a8;
+            --text-muted: #626777;
+            --accent-primary: #3b82f6;
+            --accent-muted: #2563eb;
+            --status-success: #10b981;
+            --status-warn: #f59e0b;
+            --status-error: #ef4444;
+        }
+
         body {
-            font-family: 'Outfit', sans-serif;
-            background-color: #0d0e15;
-            color: #f3f4f6;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            -webkit-font-smoothing: antialiased;
+            letter-spacing: -0.01em;
         }
-        .title-font {
-            font-family: 'Space Grotesk', sans-serif;
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
         }
-        /* Glassmorphism style */
-        .glass-panel {
-            background: rgba(22, 28, 45, 0.4);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
+
+        /* Pure Matte Finish Cards - No Neon, No Glare */
+        .matte-card {
+            background-color: var(--surface-1);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+        }
+
+        .matte-card-inner {
+            background-color: var(--surface-2);
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+        }
+
+        .matte-input {
+            background-color: var(--surface-2);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            border-radius: 6px;
+            padding: 8px 12px;
+            outline: none;
+            transition: border-color 0.15s ease;
+        }
+
+        .matte-input:focus {
+            border-color: var(--border-highlight);
+        }
+
+        .matte-btn {
+            background-color: var(--surface-3);
+            border: 1px solid var(--border-highlight);
+            color: var(--text-primary);
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .matte-btn:hover:not(:disabled) {
+            background-color: #2f3442;
+        }
+
+        .matte-btn-primary {
+            background-color: #2563eb;
+            border: 1px solid #3b82f6;
+            color: #ffffff;
+        }
+
+        .matte-btn-primary:hover:not(:disabled) {
+            background-color: #1d4ed8;
+        }
+
+        .matte-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        /* Clean subtle scrollbar */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--surface-1);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--surface-3);
+            border-radius: 3px;
         }
     </style>
 </head>
@@ -39,8 +123,56 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
+        const DEMO_PRESETS = [
+            {
+                name: "E-Commerce Checkout Stress",
+                target: "http://localhost:8002/checkout/process",
+                method: "GET",
+                persona: "e_commerce_shopper",
+                concurrency: 120,
+                duration: 20,
+                failure_mode: "blocking_async"
+            },
+            {
+                name: "Database Heavy /products",
+                target: "http://localhost:8002/products",
+                method: "GET",
+                persona: "heavy_read",
+                concurrency: 80,
+                duration: 20,
+                failure_mode: "n_plus_one"
+            },
+            {
+                name: "DB Connection Pool Exhaustion",
+                target: "http://localhost:8002/db-status",
+                method: "GET",
+                persona: "standard",
+                concurrency: 100,
+                duration: 20,
+                failure_mode: "db_pool"
+            },
+            {
+                name: "External API Endpoint (Custom)",
+                target: "https://httpbin.org/get",
+                method: "GET",
+                persona: "standard",
+                concurrency: 50,
+                duration: 15,
+                failure_mode: "none"
+            }
+        ];
+
         function App() {
-            const [failureMode, setFailureMode] = useState("db_pool");
+            // Configuration State
+            const [targetUrl, setTargetUrl] = useState("http://localhost:8002/products");
+            const [httpMethod, setHttpMethod] = useState("GET");
+            const [userPersona, setUserPersona] = useState("standard");
+            const [loadProfile, setLoadProfile] = useState("step_ramp");
+            const [maxConcurrency, setMaxConcurrency] = useState(100);
+            const [testDuration, setTestDuration] = useState(25);
+            const [failureMode, setFailureMode] = useState("n_plus_one");
+
+            // Execution & Live Data State
             const [currentTest, setCurrentTest] = useState(null);
             const [testMetrics, setTestMetrics] = useState([]);
             const [diagnosis, setDiagnosis] = useState(null);
@@ -50,18 +182,25 @@
             const [learningStats, setLearningStats] = useState(null);
             const [isTesting, setIsTesting] = useState(false);
             const [isVerifying, setIsVerifying] = useState(false);
-            const [statusMessage, setStatusMessage] = useState("");
+            const [activeTab, setActiveTab] = useState("dashboard"); // 'dashboard', 'knowledge', 'history'
+            const [statusLog, setStatusLog] = useState("System idle. Select target API and click 'Launch Stress Test'.");
 
             const chartRef = useRef(null);
             const chartInstance = useRef(null);
+            const pollingTimer = useRef(null);
 
+            // Fetch initial data
             useEffect(() => {
                 fetchIncidents();
                 fetchLearningStats();
+                return () => {
+                    if (pollingTimer.current) clearInterval(pollingTimer.current);
+                };
             }, []);
 
+            // Render chart whenever metrics update
             useEffect(() => {
-                if (testMetrics.length > 0 && chartRef.current) {
+                if (chartRef.current && testMetrics.length > 0) {
                     renderChart();
                 }
             }, [testMetrics]);
@@ -69,139 +208,168 @@
             const fetchIncidents = async () => {
                 try {
                     const res = await fetch("http://localhost:8001/api/incidents");
-                    const data = await res.json();
-                    setIncidents(data);
+                    if (res.ok) {
+                        const data = await res.json();
+                        setIncidents(data);
+                    }
                 } catch (e) {
-                    console.error("Failed to fetch incidents", e);
+                    // backend offline or starting
                 }
             };
 
             const fetchLearningStats = async () => {
                 try {
                     const res = await fetch("http://localhost:8001/api/learning");
-                    const data = await res.json();
-                    setLearningStats(data);
+                    if (res.ok) {
+                        const data = await res.json();
+                        setLearningStats(data);
+                    }
                 } catch (e) {
-                    console.error("Failed to fetch learning stats", e);
+                    // backend offline
                 }
             };
 
-            const startTest = async () => {
+            const applyPreset = (preset) => {
+                setTargetUrl(preset.target);
+                setHttpMethod(preset.method);
+                setUserPersona(preset.persona);
+                setMaxConcurrency(preset.concurrency);
+                setTestDuration(preset.duration);
+                setFailureMode(preset.failure_mode);
+                setStatusLog(`Loaded scenario preset: "${preset.name}"`);
+            };
+
+            const startStressTest = async () => {
                 setIsTesting(true);
                 setDiagnosis(null);
                 setRemediation(null);
                 setVerification(null);
-                setStatusMessage("Initializing target application and starting Locust swarm...");
-                
+                setTestMetrics([]);
+                setStatusLog(`Spawning fake simulated users (${userPersona}) targeting ${targetUrl}...`);
+
                 try {
+                    const payload = {
+                        name: `Stress Run: ${targetUrl.replace('http://', '').replace('https://', '').split('/')[0]}`,
+                        target_app_url: targetUrl,
+                        http_method: httpMethod,
+                        user_persona: userPersona,
+                        load_profile: loadProfile,
+                        max_concurrency: parseInt(maxConcurrency),
+                        duration_seconds: parseInt(testDuration),
+                        failure_mode: failureMode
+                    };
+
                     const res = await fetch("http://localhost:8001/api/tests/start", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ failure_mode: failureMode })
+                        body: JSON.stringify(payload)
                     });
+                    
+                    if (!res.ok) throw new Error("Failed to initialize test run");
                     const test = await res.json();
                     setCurrentTest(test);
-                    
-                    // Start polling metrics
-                    pollTest(test.id);
+                    pollTestExecution(test.id);
                 } catch (e) {
-                    setStatusMessage("Error starting test");
+                    setStatusLog(`Error starting stress test: ${e.message}`);
                     setIsTesting(false);
                 }
             };
 
-            const pollTest = (id) => {
-                const interval = setInterval(async () => {
+            const pollTestExecution = (id) => {
+                if (pollingTimer.current) clearInterval(pollingTimer.current);
+
+                pollingTimer.current = setInterval(async () => {
                     try {
-                        // Check test status
-                        const testRes = await fetch(`http://localhost:8001/api/tests/${id}`);
-                        const test = await testRes.json();
-                        setCurrentTest(test);
+                        const [testRes, metricsRes] = await Promise.all([
+                            fetch(`http://localhost:8001/api/tests/${id}`),
+                            fetch(`http://localhost:8001/api/tests/${id}/metrics`)
+                        ]);
 
-                        // Fetch metrics history
-                        const metricsRes = await fetch(`http://localhost:8001/api/tests/${id}/metrics`);
-                        const metrics = await metricsRes.json();
-                        setTestMetrics(metrics);
+                        if (testRes.ok) {
+                            const test = await testRes.json();
+                            setCurrentTest(test);
 
-                        if (test.status === "completed") {
-                            clearInterval(interval);
-                            setIsTesting(false);
-                            setStatusMessage("Test completed. Analyzing breaking point...");
-                            fetchDiagnosis(id);
-                            fetchIncidents();
-                            fetchLearningStats();
+                            if (metricsRes.ok) {
+                                const metrics = await metricsRes.json();
+                                setTestMetrics(metrics);
+                                if (metrics.length > 0) {
+                                    const latest = metrics[metrics.length - 1];
+                                    setStatusLog(`Load step: ${latest.users} virtual users | Throughput: ${latest.rps} req/s | P95: ${latest.p95_ms}ms | Errors: ${(latest.error_rate * 100).toFixed(1)}%`);
+                                }
+                            }
+
+                            if (test.status === "completed") {
+                                clearInterval(pollingTimer.current);
+                                setIsTesting(false);
+                                setStatusLog("Stress cycle finished. Agentic AI is evaluating failure signatures...");
+                                fetchDiagnosisAndRemediation(id);
+                                fetchIncidents();
+                                fetchLearningStats();
+                            }
                         }
                     } catch (e) {
-                        console.error("Error polling test data", e);
+                        console.error("Polling error", e);
                     }
                 }, 1000);
             };
 
-            const fetchDiagnosis = async (id) => {
+            const fetchDiagnosisAndRemediation = async (id) => {
                 try {
-                    const res = await fetch(`http://localhost:8001/api/tests/${id}/diagnosis`);
-                    const data = await res.json();
-                    setDiagnosis(data);
-                    setStatusMessage("Diagnosis completed. Fetching proposed remediation...");
-                    fetchRemediation(id);
+                    const diagRes = await fetch(`http://localhost:8001/api/tests/${id}/diagnosis`);
+                    if (diagRes.ok) {
+                        const diagData = await diagRes.json();
+                        setDiagnosis(diagData);
+                    }
+
+                    const remRes = await fetch(`http://localhost:8001/api/tests/${id}/remediation`);
+                    if (remRes.ok) {
+                        const remData = await remRes.json();
+                        setRemediation(remData);
+                        setStatusLog("Self-learning cycle complete. Root cause and remediation stored in Memory.");
+                    }
                 } catch (e) {
-                    console.error("Error fetching diagnosis", e);
+                    console.error("Error fetching AI output", e);
                 }
             };
 
-            const fetchRemediation = async (id) => {
-                try {
-                    const res = await fetch(`http://localhost:8001/api/tests/${id}/remediation`);
-                    const data = await res.json();
-                    setRemediation(data);
-                    setStatusMessage("Remediation proposed.");
-                } catch (e) {
-                    console.error("Error fetching remediation", e);
-                }
-            };
-
-            const applyRemediation = async () => {
+            const applyFix = async () => {
                 if (!currentTest) return;
-                setStatusMessage("Applying patch and restarting target container...");
+                setStatusLog("Applying automated remediation & restarting service container...");
                 try {
-                    const res = await fetch(`http://localhost:8001/api/tests/${currentTest.id}/remediate`, {
-                        method: "POST"
-                    });
+                    const res = await fetch(`http://localhost:8001/api/tests/${currentTest.id}/remediate`, { method: "POST" });
                     const data = await res.json();
                     setRemediation(data.remediation);
-                    setStatusMessage("Remediation applied successfully.");
+                    setStatusLog("Code patch applied successfully.");
                 } catch (e) {
-                    setStatusMessage("Error applying remediation");
+                    setStatusLog("Error applying remediation patch");
                 }
             };
 
-            const verifyRemediation = async () => {
+            const verifyFix = async () => {
                 if (!currentTest) return;
                 setIsVerifying(true);
-                setStatusMessage("Running verification workload against target application...");
+                setStatusLog("Running post-remediation verification workload to measure improvement...");
                 try {
-                    const res = await fetch(`http://localhost:8001/api/tests/${currentTest.id}/verify`, {
-                        method: "POST"
-                    });
+                    const res = await fetch(`http://localhost:8001/api/tests/${currentTest.id}/verify`, { method: "POST" });
                     const data = await res.json();
                     setVerification(data);
                     setIsVerifying(false);
-                    setStatusMessage("Verification complete.");
+                    setStatusLog(`Verification outcome: ${data.success ? 'SUCCESS' : 'FAILED'} (P95 Latency improved by ${data.latency_improvement_percent}%)`);
                     fetchIncidents();
                     fetchLearningStats();
                 } catch (e) {
-                    setStatusMessage("Error verifying remediation");
+                    setStatusLog("Error during verification run");
                     setIsVerifying(false);
                 }
             };
 
             const renderChart = () => {
                 const ctx = chartRef.current.getContext('2d');
-                
-                const labels = testMetrics.map((_, i) => `${i}s`);
-                const errorRates = testMetrics.map(m => m.error_rate * 100);
-                const latencies = testMetrics.map(m => m.p95_ms);
+                const labels = testMetrics.map((m, i) => m.timestamp || `${i}s`);
+                const p95s = testMetrics.map(m => m.p95_ms);
+                const rpss = testMetrics.map(m => m.rps);
                 const users = testMetrics.map(m => m.users);
+                const errorRates = testMetrics.map(m => (m.error_rate * 100).toFixed(1));
 
                 if (chartInstance.current) {
                     chartInstance.current.destroy();
@@ -214,46 +382,72 @@
                         datasets: [
                             {
                                 label: 'P95 Latency (ms)',
-                                data: latencies,
-                                borderColor: '#ef4444',
-                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                                yAxisID: 'y',
-                                tension: 0.3
+                                data: p95s,
+                                borderColor: '#e11d48',
+                                backgroundColor: 'transparent',
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                tension: 0.2,
+                                yAxisID: 'y'
                             },
                             {
-                                label: 'Error Rate (%)',
-                                data: errorRates,
-                                borderColor: '#f59e0b',
-                                backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                                yAxisID: 'y1',
-                                tension: 0.3
+                                label: 'Throughput (RPS)',
+                                data: rpss,
+                                borderColor: '#3b82f6',
+                                backgroundColor: 'transparent',
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                tension: 0.2,
+                                yAxisID: 'y1'
                             },
                             {
                                 label: 'Virtual Users',
                                 data: users,
-                                borderColor: '#3b82f6',
-                                backgroundColor: 'rgba(59, 130, 246, 0.05)',
-                                yAxisID: 'y2',
-                                borderDash: [5, 5],
-                                tension: 0.1
+                                borderColor: '#64748b',
+                                borderDash: [4, 4],
+                                backgroundColor: 'transparent',
+                                borderWidth: 1.5,
+                                pointRadius: 0,
+                                tension: 0.1,
+                                yAxisID: 'y2'
                             }
                         ]
                     },
                     options: {
                         responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: {
+                                labels: { color: '#9499a8', font: { family: 'Inter', size: 11 }, boxWidth: 12 }
+                            },
+                            tooltip: {
+                                backgroundColor: '#1e212b',
+                                borderColor: '#3c4254',
+                                borderWidth: 1,
+                                titleColor: '#e4e7ec',
+                                bodyColor: '#9499a8',
+                                padding: 8
+                            }
+                        },
                         scales: {
+                            x: {
+                                grid: { color: '#1e212b' },
+                                ticks: { color: '#626777', font: { size: 10 } }
+                            },
                             y: {
                                 type: 'linear',
-                                display: true,
                                 position: 'left',
-                                title: { display: true, text: 'Latency (ms)' }
+                                title: { display: true, text: 'Latency (ms)', color: '#9499a8', font: { size: 11 } },
+                                grid: { color: '#1e212b' },
+                                ticks: { color: '#626777', font: { size: 10 } }
                             },
                             y1: {
                                 type: 'linear',
-                                display: true,
                                 position: 'right',
-                                title: { display: true, text: 'Error Rate (%)' },
-                                grid: { drawOnChartArea: false }
+                                title: { display: true, text: 'RPS', color: '#9499a8', font: { size: 11 } },
+                                grid: { drawOnChartArea: false },
+                                ticks: { color: '#626777', font: { size: 10 } }
                             },
                             y2: {
                                 type: 'linear',
@@ -265,217 +459,532 @@
             };
 
             return (
-                <div className="max-w-7xl mx-auto px-4 py-8">
-                    {/* Header */}
-                    <div className="flex flex-col md:flex-row justify-between items-center mb-8 pb-6 border-b border-gray-800">
-                        <div>
-                            <h1 className="text-4xl font-bold title-font text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-indigo-400">
-                                LoadMind
-                            </h1>
-                            <p className="text-gray-400 text-sm mt-1">Autonomous Resilience Engineering Platform</p>
-                        </div>
-                        
-                        {/* Learning dashboard stats */}
-                        {learningStats && (
-                            <div className="flex space-x-6 mt-4 md:mt-0">
-                                <div className="glass-panel rounded-lg px-4 py-2 text-center">
-                                    <div className="text-xs text-gray-400">Incidents Learned</div>
-                                    <div className="text-xl font-bold text-indigo-400">{learningStats.total_incidents_stored}</div>
-                                </div>
-                                <div className="glass-panel rounded-lg px-4 py-2 text-center">
-                                    <div className="text-xs text-gray-400">Remediation Success</div>
-                                    <div className="text-xl font-bold text-green-400">{learningStats.remediation_success_rate}%</div>
-                                </div>
-                                <div className="glass-panel rounded-lg px-4 py-2 text-center">
-                                    <div className="text-xs text-gray-400">Signatures Identified</div>
-                                    <div className="text-xl font-bold text-purple-400">{learningStats.signatures_learned}</div>
-                                </div>
+                <div className="max-w-[1400px] mx-auto p-4 md:p-6">
+                    {/* Top Navigation Bar */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 mb-6 border-b border-[#262a36] gap-4">
+                        <div className="flex items-center space-x-3">
+                            <div className="w-8 h-8 rounded bg-[#1e212b] border border-[#3c4254] flex items-center justify-center font-bold text-sm text-blue-400">
+                                LM
                             </div>
-                        )}
+                            <div>
+                                <div className="flex items-center space-x-2">
+                                    <h1 className="text-lg font-semibold text-[#f1f3f7]">LoadMind</h1>
+                                    <span className="text-[11px] px-2 py-0.5 rounded bg-[#1e212b] text-[#9499a8] border border-[#2b303d]">
+                                        Self-Learning Agentic Stress Core
+                                    </span>
+                                </div>
+                                <p className="text-xs text-[#626777] mt-0.5">Universal API Stress Testing & Autonomous Resilience Diagnosis</p>
+                            </div>
+                        </div>
+
+                        {/* Navigation Tabs */}
+                        <div className="flex items-center space-x-1 bg-[#161821] p-1 rounded-md border border-[#2b303d]">
+                            <button 
+                                onClick={() => setActiveTab("dashboard")}
+                                className={`px-3 py-1.5 rounded text-xs font-medium transition ${activeTab === 'dashboard' ? 'bg-[#262a36] text-white' : 'text-[#9499a8] hover:text-white'}`}
+                            >
+                                Live Control Center
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab("knowledge")}
+                                className={`px-3 py-1.5 rounded text-xs font-medium transition ${activeTab === 'knowledge' ? 'bg-[#262a36] text-white' : 'text-[#9499a8] hover:text-white'}`}
+                            >
+                                AI Memory ({learningStats ? learningStats.signatures_learned : 0})
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab("history")}
+                                className={`px-3 py-1.5 rounded text-xs font-medium transition ${activeTab === 'history' ? 'bg-[#262a36] text-white' : 'text-[#9499a8] hover:text-white'}`}
+                            >
+                                Incident Log ({incidents.length})
+                            </button>
+                        </div>
                     </div>
 
-                    {/* Main Workspace Grid */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        
-                        {/* Left: Test Control & Config */}
-                        <div className="lg:col-span-1 space-y-6">
-                            <div className="glass-panel rounded-xl p-6">
-                                <h2 className="text-xl font-bold mb-4 title-font text-indigo-300">Target Configuration</h2>
-                                <div className="mb-4">
-                                    <label className="block text-sm text-gray-400 mb-2">Failure Scenario to Inject</label>
-                                    <select 
-                                        className="w-full bg-[#181a26] border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-indigo-500"
-                                        value={failureMode}
-                                        onChange={(e) => setFailureMode(e.target.value)}
-                                        disabled={isTesting}
-                                    >
-                                        <option value="db_pool">Database Pool Exhaustion (pool_size=5)</option>
-                                        <option value="n_plus_one">N+1 query problem on /products</option>
-                                        <option value="unbounded_cache">Unbounded memory cache on /recommendations</option>
-                                        <option value="missing_index">Missing database index on orders.user_id</option>
-                                        <option value="blocking_async">Blocking synchronous call in async route</option>
-                                        <option value="none">No Failure (Baseline Performance)</option>
-                                    </select>
-                                </div>
-
-                                <button
-                                    onClick={startTest}
-                                    disabled={isTesting || isVerifying}
-                                    className={`w-full py-3 rounded-lg font-semibold title-font transition-all ${
-                                        isTesting 
-                                        ? "bg-gray-700 cursor-not-allowed text-gray-400" 
-                                        : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-lg text-white"
-                                    }`}
-                                >
-                                    {isTesting ? "Executing Load Test..." : "Start Resilience Cycle"}
-                                </button>
-                            </div>
-
-                            {/* Status Message */}
-                            {statusMessage && (
-                                <div className="glass-panel rounded-xl p-4 border border-blue-500/20 bg-blue-500/5">
-                                    <div className="text-xs uppercase text-blue-400 font-bold mb-1">System Log</div>
-                                    <div className="text-sm text-gray-300">{statusMessage}</div>
-                                </div>
-                            )}
-
-                            {/* Incident History List */}
-                            <div className="glass-panel rounded-xl p-6">
-                                <h2 className="text-xl font-bold mb-4 title-font text-indigo-300">Incident History</h2>
-                                <div className="space-y-3 max-h-60 overflow-y-auto">
-                                    {incidents.map((inc) => (
-                                        <div key={inc.id} className="p-3 bg-[#161a29] rounded-lg border border-gray-800 text-xs flex justify-between items-center">
-                                            <div>
-                                                <div className="font-semibold text-gray-200">Incident #{inc.id} - Mode: {inc.failure_mode}</div>
-                                                <div className="text-gray-400 mt-1">
-                                                    BP Concurrency: {inc.breaking_point_users || "N/A"} | P95: {inc.p95_ms ? `${Math.round(inc.p95_ms)}ms` : "N/A"}
-                                                </div>
-                                            </div>
-                                            <span className={`px-2 py-0.5 rounded text-[10px] ${
-                                                inc.success ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
-                                            }`}>
-                                                {inc.success ? "Resolved" : "Failed"}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
+                    {/* Metric Quick Stats Bar */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                        <div className="matte-card p-3">
+                            <div className="text-[11px] text-[#626777] font-medium">Memory Incidents Learned</div>
+                            <div className="text-xl font-semibold text-[#e4e7ec] mt-1 mono">
+                                {learningStats ? learningStats.total_incidents_stored : 0}
                             </div>
                         </div>
+                        <div className="matte-card p-3">
+                            <div className="text-[11px] text-[#626777] font-medium">AI Remediation Success Rate</div>
+                            <div className="text-xl font-semibold text-emerald-400 mt-1 mono">
+                                {learningStats ? `${learningStats.remediation_success_rate}%` : '0%'}
+                            </div>
+                        </div>
+                        <div className="matte-card p-3">
+                            <div className="text-[11px] text-[#626777] font-medium">Bottleneck Signatures</div>
+                            <div className="text-xl font-semibold text-blue-400 mt-1 mono">
+                                {learningStats ? learningStats.signatures_learned : 0}
+                            </div>
+                        </div>
+                        <div className="matte-card p-3">
+                            <div className="text-[11px] text-[#626777] font-medium">Engine Status</div>
+                            <div className="text-sm font-medium text-[#9499a8] mt-1.5 flex items-center space-x-1.5">
+                                <span className={`w-2 h-2 rounded-full ${isTesting ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`}></span>
+                                <span>{isTesting ? 'Active Stress Swarm' : 'Ready / Standby'}</span>
+                            </div>
+                        </div>
+                    </div>
 
-                        {/* Right / Mid: Visualizer & Diagnostics */}
-                        <div className="lg:col-span-2 space-y-6">
+                    {/* TAB 1: DASHBOARD */}
+                    {activeTab === 'dashboard' && (
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                             
-                            {/* Live Metrics Graph */}
-                            <div className="glass-panel rounded-xl p-6">
-                                <h2 className="text-xl font-bold mb-4 title-font text-indigo-300">Live Test Execution</h2>
-                                <div className="w-full h-64 bg-[#11131f] rounded-lg p-2">
-                                    {testMetrics.length > 0 ? (
-                                        <canvas ref={chartRef}></canvas>
-                                    ) : (
-                                        <div className="h-full flex items-center justify-center text-gray-500">
-                                            No active run metrics. Start a test cycle to view live execution.
+                            {/* Left Config Panel (4 Cols) */}
+                            <div className="lg:col-span-4 space-y-4">
+                                
+                                {/* Quick Demo Presets */}
+                                <div className="matte-card p-4">
+                                    <div className="text-xs font-semibold text-[#9499a8] uppercase tracking-wider mb-2.5">
+                                        One-Click Demo Scenarios
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {DEMO_PRESETS.map((p, idx) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => applyPreset(p)}
+                                                disabled={isTesting}
+                                                className="text-left p-2 rounded bg-[#1e212b] border border-[#2b303d] hover:border-[#3c4254] text-xs transition"
+                                            >
+                                                <div className="font-medium text-[#e4e7ec] truncate">{p.name}</div>
+                                                <div className="text-[10px] text-[#626777] mono truncate mt-0.5">{p.target.split('/').slice(3).join('/') || '/'}</div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Target API Configuration */}
+                                <div className="matte-card p-4 space-y-3.5">
+                                    <div className="text-xs font-semibold text-[#9499a8] uppercase tracking-wider">
+                                        Target API Configuration
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[11px] text-[#9499a8] mb-1">Target Endpoint URL</label>
+                                        <div className="flex space-x-2">
+                                            <select 
+                                                value={httpMethod}
+                                                onChange={(e) => setHttpMethod(e.target.value)}
+                                                disabled={isTesting}
+                                                className="matte-input text-xs mono w-20 px-2"
+                                            >
+                                                <option value="GET">GET</option>
+                                                <option value="POST">POST</option>
+                                                <option value="PUT">PUT</option>
+                                                <option value="DELETE">DEL</option>
+                                            </select>
+                                            <input 
+                                                type="text" 
+                                                value={targetUrl}
+                                                onChange={(e) => setTargetUrl(e.target.value)}
+                                                placeholder="https://api.yourdomain.com/v1/orders"
+                                                disabled={isTesting}
+                                                className="matte-input text-xs mono flex-1"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-[11px] text-[#9499a8] mb-1">Simulated User Persona</label>
+                                            <select 
+                                                value={userPersona}
+                                                onChange={(e) => setUserPersona(e.target.value)}
+                                                disabled={isTesting}
+                                                className="matte-input text-xs w-full"
+                                            >
+                                                <option value="standard">Standard Consumer</option>
+                                                <option value="e_commerce_shopper">E-Commerce Shopper</option>
+                                                <option value="heavy_read">Heavy Read Query</option>
+                                                <option value="aggressive_burst">Spiky Aggressive Burst</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[11px] text-[#9499a8] mb-1">Load Profile</label>
+                                            <select 
+                                                value={loadProfile}
+                                                onChange={(e) => setLoadProfile(e.target.value)}
+                                                disabled={isTesting}
+                                                className="matte-input text-xs w-full"
+                                            >
+                                                <option value="step_ramp">Step Ramp-Up (50 → Max)</option>
+                                                <option value="spike">Sudden Traffic Spike</option>
+                                                <option value="constant">Constant Sustained Load</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-[11px] text-[#9499a8] mb-1">Max Users Concurrency</label>
+                                            <input 
+                                                type="number"
+                                                value={maxConcurrency}
+                                                onChange={(e) => setMaxConcurrency(e.target.value)}
+                                                min="5"
+                                                max="500"
+                                                disabled={isTesting}
+                                                className="matte-input text-xs w-full mono"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[11px] text-[#9499a8] mb-1">Duration (Seconds)</label>
+                                            <input 
+                                                type="number"
+                                                value={testDuration}
+                                                onChange={(e) => setTestDuration(e.target.value)}
+                                                min="10"
+                                                max="120"
+                                                disabled={isTesting}
+                                                className="matte-input text-xs w-full mono"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Built-in Failure Simulator Selector (optional) */}
+                                    <div>
+                                        <label className="block text-[11px] text-[#9499a8] mb-1">Target Failure Mode (for built-in app)</label>
+                                        <select 
+                                            value={failureMode}
+                                            onChange={(e) => setFailureMode(e.target.value)}
+                                            disabled={isTesting}
+                                            className="matte-input text-xs w-full"
+                                        >
+                                            <option value="none">None (Standard Target)</option>
+                                            <option value="db_pool">Database Pool Exhaustion (pool=5)</option>
+                                            <option value="n_plus_one">N+1 Query Bottleneck</option>
+                                            <option value="unbounded_cache">Unbounded Memory Leak</option>
+                                            <option value="missing_index">Missing DB Index Filter</option>
+                                            <option value="blocking_async">Blocking Sync Call in Async Route</option>
+                                        </select>
+                                    </div>
+
+                                    <button
+                                        onClick={startStressTest}
+                                        disabled={isTesting || isVerifying}
+                                        className="matte-btn matte-btn-primary w-full text-xs py-2.5 flex items-center justify-center space-x-2"
+                                    >
+                                        <span>{isTesting ? 'Stress Test In Progress...' : 'Launch Stress Test & AI Learner'}</span>
+                                    </button>
+                                </div>
+
+                                {/* Status & Log Box */}
+                                <div className="matte-card p-3.5">
+                                    <div className="text-[11px] font-semibold text-[#9499a8] uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                                        <span>Real-Time Status</span>
+                                        <span className="text-[10px] text-[#626777] mono">SSE/POLL</span>
+                                    </div>
+                                    <div className="text-xs text-[#9499a8] mono bg-[#1e212b] p-2.5 rounded border border-[#2b303d] break-words">
+                                        {statusLog}
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            {/* Right Live Telemetry & AI Output (8 Cols) */}
+                            <div className="lg:col-span-8 space-y-4">
+                                
+                                {/* Telemetry Graph Card */}
+                                <div className="matte-card p-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div>
+                                            <div className="text-xs font-semibold text-[#9499a8] uppercase tracking-wider">
+                                                Live Telemetry & Breaking Point Curve
+                                            </div>
+                                            <div className="text-xs text-[#626777]">
+                                                Observing P95 latency (ms), throughput (req/s), and virtual user load
+                                            </div>
+                                        </div>
+                                        {currentTest && (
+                                            <span className={`text-[11px] px-2 py-0.5 rounded mono ${currentTest.status === 'completed' ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800' : 'bg-amber-950/60 text-amber-400 border border-amber-800'}`}>
+                                                {currentTest.status.toUpperCase()}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <div className="h-64 w-full bg-[#161821] rounded border border-[#2b303d] p-2 relative">
+                                        {testMetrics.length > 0 ? (
+                                            <canvas ref={chartRef}></canvas>
+                                        ) : (
+                                            <div className="h-full flex flex-col items-center justify-center text-xs text-[#626777] space-y-1">
+                                                <span>No active test execution running.</span>
+                                                <span className="text-[11px]">Click 'Launch Stress Test' to visualize live latency and breaking point.</span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Realtime Stats Pills */}
+                                    {testMetrics.length > 0 && (
+                                        <div className="grid grid-cols-4 gap-2 mt-3 pt-3 border-t border-[#262a36] text-center">
+                                            <div>
+                                                <div className="text-[10px] text-[#626777]">Latest Users</div>
+                                                <div className="text-sm font-semibold mono text-[#e4e7ec]">
+                                                    {testMetrics[testMetrics.length - 1].users}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="text-[10px] text-[#626777]">P95 Latency</div>
+                                                <div className="text-sm font-semibold mono text-rose-400">
+                                                    {testMetrics[testMetrics.length - 1].p95_ms}ms
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="text-[10px] text-[#626777]">Throughput</div>
+                                                <div className="text-sm font-semibold mono text-blue-400">
+                                                    {testMetrics[testMetrics.length - 1].rps} req/s
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="text-[10px] text-[#626777]">Error Rate</div>
+                                                <div className="text-sm font-semibold mono text-amber-400">
+                                                    {(testMetrics[testMetrics.length - 1].error_rate * 100).toFixed(1)}%
+                                                </div>
+                                            </div>
                                         </div>
                                     )}
+                                </div>
+
+                                {/* Agentic AI Output: Diagnosis & Remediation */}
+                                {diagnosis && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        
+                                        {/* Diagnostician Output */}
+                                        <div className="matte-card p-4 space-y-3">
+                                            <div className="flex items-center justify-between border-b border-[#262a36] pb-2">
+                                                <div className="text-xs font-semibold text-[#9499a8] uppercase tracking-wider">
+                                                    Autonomous Diagnosis
+                                                </div>
+                                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-950/60 text-blue-400 border border-blue-900 mono">
+                                                    Confidence: {(diagnosis.confidence * 100).toFixed(0)}%
+                                                </span>
+                                            </div>
+
+                                            <div>
+                                                <div className="text-[11px] text-[#626777]">Primary Root Cause</div>
+                                                <div className="text-sm font-medium text-[#e4e7ec] mono mt-0.5">
+                                                    {diagnosis.primary_root_cause}
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <div className="text-[11px] text-[#626777] mb-1">Evidence & Signals</div>
+                                                <ul className="text-xs text-[#9499a8] space-y-1 list-disc pl-4">
+                                                    {diagnosis.evidence.map((ev, i) => (
+                                                        <li key={i}>{ev}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+
+                                            <div className="text-xs text-[#9499a8] bg-[#1e212b] p-2 rounded border border-[#2b303d]">
+                                                <span className="text-[10px] uppercase font-bold text-amber-400 block mb-0.5">Action Plan</span>
+                                                {diagnosis.recommended_action}
+                                            </div>
+                                        </div>
+
+                                        {/* Remediator Output */}
+                                        <div className="matte-card p-4 space-y-3">
+                                            <div className="flex items-center justify-between border-b border-[#262a36] pb-2">
+                                                <div className="text-xs font-semibold text-[#9499a8] uppercase tracking-wider">
+                                                    Architectural & Code Fix
+                                                </div>
+                                                <span className="text-[10px] text-emerald-400 font-medium">Self-Learning Match</span>
+                                            </div>
+
+                                            <p className="text-xs text-[#9499a8]">{remediation?.proposed_remediation}</p>
+
+                                            {remediation?.patch_diff && (
+                                                <div>
+                                                    <div className="text-[10px] text-[#626777] mb-1 mono">Generated Code Patch:</div>
+                                                    <pre className="text-[11px] bg-[#12141a] text-emerald-300 p-2 rounded border border-[#2b303d] overflow-x-auto mono max-h-32">
+                                                        {remediation.patch_diff}
+                                                    </pre>
+                                                </div>
+                                            )}
+
+                                            {remediation?.architecture_advice && (
+                                                <div className="text-xs text-[#9499a8] bg-[#1e212b] p-2 rounded border border-[#2b303d] whitespace-pre-line text-[11px]">
+                                                    <span className="text-[10px] uppercase font-bold text-blue-400 block mb-0.5">Architecture Scaling Advice</span>
+                                                    {remediation.architecture_advice}
+                                                </div>
+                                            )}
+
+                                            <div className="pt-2 flex space-x-2">
+                                                {!remediation?.is_applied ? (
+                                                    <button
+                                                        onClick={applyFix}
+                                                        className="matte-btn w-full text-xs py-2 bg-emerald-900/40 border-emerald-700 text-emerald-300 hover:bg-emerald-900/60"
+                                                    >
+                                                        Apply Remediation Patch
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        onClick={verifyFix}
+                                                        disabled={isVerifying}
+                                                        className="matte-btn matte-btn-primary w-full text-xs py-2"
+                                                    >
+                                                        {isVerifying ? 'Running Verification...' : 'Verify Post-Fix Resilience'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                )}
+
+                                {/* Verification Improvement Card */}
+                                {verification && (
+                                    <div className="matte-card p-4 border-l-4 border-l-emerald-500">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
+                                                Resilience Verification: Succeeded
+                                            </div>
+                                            <span className="text-xs text-[#626777] mono">Pattern Learned to ChromaDB & SQL</span>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+                                            <div>
+                                                <div className="text-[10px] text-[#626777]">Latency Improvement</div>
+                                                <div className="text-base font-semibold text-emerald-400 mono">
+                                                    +{verification.latency_improvement_percent}%
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="text-[10px] text-[#626777]">Error Rate (Before → After)</div>
+                                                <div className="text-sm font-semibold text-[#e4e7ec] mono">
+                                                    {(verification.error_rate_before * 100).toFixed(0)}% → {(verification.error_rate_after * 100).toFixed(0)}%
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="text-[10px] text-[#626777]">Initial Breaking Point</div>
+                                                <div className="text-sm font-semibold text-[#9499a8] mono">
+                                                    {verification.breaking_point_before} users
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="text-[10px] text-[#626777]">New Stable Capacity</div>
+                                                <div className="text-sm font-semibold text-blue-400 mono">
+                                                    {verification.breaking_point_after} users
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                            </div>
+
+                        </div>
+                    )}
+
+                    {/* TAB 2: KNOWLEDGE & PATTERN MEMORY */}
+                    {activeTab === 'knowledge' && (
+                        <div className="space-y-4">
+                            <div className="matte-card p-4">
+                                <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#262a36]">
+                                    <div>
+                                        <h2 className="text-sm font-semibold text-[#f1f3f7]">Autonomous Resilience Knowledge Base</h2>
+                                        <p className="text-xs text-[#626777]">Stored bottleneck signatures, vectorized symptoms, and verified remediation strategies.</p>
+                                    </div>
+                                    <span className="text-xs font-mono px-2 py-1 bg-[#1e212b] text-[#9499a8] rounded border border-[#2b303d]">
+                                        ChromaDB + SQLite Hybrid Store
+                                    </span>
+                                </div>
+
+                                {learningStats?.patterns && learningStats.patterns.length > 0 ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {learningStats.patterns.map((pat) => (
+                                            <div key={pat.id} className="matte-card-inner p-4 space-y-2.5">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs font-semibold text-[#e4e7ec]">{pat.title}</span>
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800 mono">
+                                                        Encountered: {pat.times_encountered}x
+                                                    </span>
+                                                </div>
+
+                                                <div className="text-[11px] text-[#626777] mono">Root Cause Key: {pat.root_cause}</div>
+
+                                                <div>
+                                                    <div className="text-[10px] uppercase font-bold text-[#626777] mb-1">Known Symptoms:</div>
+                                                    <ul className="text-xs text-[#9499a8] space-y-0.5 list-disc pl-4">
+                                                        {pat.symptoms?.map((s, idx) => (
+                                                            <li key={idx}>{s}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+
+                                                <div className="text-xs text-[#9499a8] bg-[#12141a] p-2 rounded border border-[#2b303d]">
+                                                    <span className="text-[10px] uppercase font-bold text-blue-400 block mb-0.5">Learned Solution:</span>
+                                                    {pat.remediation_strategy}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="py-12 text-center text-xs text-[#626777]">
+                                        No learned patterns recorded yet. Run a stress test to train the agentic resilience memory.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* TAB 3: INCIDENT HISTORY */}
+                    {activeTab === 'history' && (
+                        <div className="matte-card p-4">
+                            <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#262a36]">
+                                <div>
+                                    <h2 className="text-sm font-semibold text-[#f1f3f7]">Incident History & Audit Log</h2>
+                                    <p className="text-xs text-[#626777]">Chronological log of stress runs, detected breaking points, and resolution status.</p>
                                 </div>
                             </div>
 
-                            {/* Diagnosis & Remediation Panel */}
-                            {diagnosis && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    
-                                    {/* Diagnosis Card */}
-                                    <div className="glass-panel rounded-xl p-6 border border-yellow-500/30">
-                                        <div className="flex justify-between items-start mb-3">
-                                            <h3 className="text-lg font-bold title-font text-yellow-400">Diagnosis</h3>
-                                            <span className="bg-yellow-500/10 text-yellow-400 text-xs px-2 py-1 rounded font-mono">
-                                                Confidence: {diagnosis.confidence * 100}%
-                                            </span>
-                                        </div>
-                                        <div className="text-sm font-semibold text-gray-200">
-                                            Root Cause: <span className="text-white underline">{diagnosis.primary_root_cause}</span>
-                                        </div>
-                                        <div className="mt-4">
-                                            <div className="text-xs text-gray-400 uppercase font-bold mb-1">Evidence Summary:</div>
-                                            <ul className="text-xs text-gray-300 space-y-1 list-disc pl-4">
-                                                {diagnosis.evidence.map((ev, i) => (
-                                                    <li key={i}>{ev}</li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    </div>
-
-                                    {/* Remediation Card */}
-                                    {remediation && (
-                                        <div className="glass-panel rounded-xl p-6 border border-green-500/30">
-                                            <h3 className="text-lg font-bold title-font text-green-400 mb-3">Remediation Proposed</h3>
-                                            <p className="text-xs text-gray-300 mb-3">{remediation.proposed_remediation}</p>
-                                            
-                                            {remediation.patch_diff && (
-                                                <pre className="text-[10px] bg-black/40 p-2 rounded overflow-x-auto text-green-300 font-mono mb-4">
-                                                    {remediation.patch_diff}
-                                                </pre>
-                                            )}
-
-                                            {!remediation.is_applied ? (
-                                                <button
-                                                    onClick={applyRemediation}
-                                                    className="w-full bg-green-600 hover:bg-green-500 text-white py-2 rounded font-semibold text-sm transition-all"
-                                                >
-                                                    Apply Code Fix
-                                                </button>
-                                            ) : (
-                                                <div className="space-y-3">
-                                                    <div className="text-xs text-green-400 font-semibold">✓ Patch Applied. Container restarted.</div>
-                                                    {!verification && (
-                                                        <button
-                                                            onClick={verifyRemediation}
-                                                            disabled={isVerifying}
-                                                            className="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded font-semibold text-sm transition-all"
-                                                        >
-                                                            {isVerifying ? "Verifying..." : "Verify Remediation"}
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Verification Result Card */}
-                            {verification && (
-                                <div className={`glass-panel rounded-xl p-6 border ${
-                                    verification.success ? "border-green-500/50 bg-green-500/5" : "border-red-500/50 bg-red-500/5"
-                                }`}>
-                                    <h3 className="text-xl font-bold title-font mb-2">
-                                        Verification Outcome: {verification.success ? "SUCCESS" : "FAILED"}
-                                    </h3>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                                        <div>
-                                            <div className="text-xs text-gray-400">Latency Improvement</div>
-                                            <div className="text-lg font-bold text-green-400">{verification.latency_improvement_percent}%</div>
-                                        </div>
-                                        <div>
-                                            <div className="text-xs text-gray-400">Error Rate (Before → After)</div>
-                                            <div className="text-lg font-bold text-gray-200">
-                                                {(verification.error_rate_before * 100).toFixed(1)}% → {(verification.error_rate_after * 100).toFixed(1)}%
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div className="text-xs text-gray-400">Breaking Concurrency (Before)</div>
-                                            <div className="text-lg font-bold text-gray-300">{verification.breaking_point_before} users</div>
-                                        </div>
-                                        <div>
-                                            <div className="text-xs text-gray-400">Stable Concurrency (After)</div>
-                                            <div className="text-lg font-bold text-blue-400">{verification.breaking_point_after} users</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs">
+                                    <thead>
+                                        <tr className="text-[#626777] border-b border-[#262a36]">
+                                            <th className="pb-2 font-medium">ID</th>
+                                            <th className="pb-2 font-medium">Run Name</th>
+                                            <th className="pb-2 font-medium">Target URL</th>
+                                            <th className="pb-2 font-medium">Breaking Concurrency</th>
+                                            <th className="pb-2 font-medium">P95 Latency</th>
+                                            <th className="pb-2 font-medium">Throughput</th>
+                                            <th className="pb-2 font-medium">Diagnosed Cause</th>
+                                            <th className="pb-2 font-medium">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-[#262a36]">
+                                        {incidents.map((inc) => (
+                                            <tr key={inc.id} className="hover:bg-[#1e212b] transition">
+                                                <td className="py-2.5 mono text-[#626777]">#{inc.id}</td>
+                                                <td className="py-2.5 font-medium text-[#e4e7ec]">{inc.name || `Run #${inc.id}`}</td>
+                                                <td className="py-2.5 mono text-[#9499a8] truncate max-w-[200px]">{inc.target_app_url}</td>
+                                                <td className="py-2.5 mono text-[#e4e7ec]">{inc.breaking_point_users || 'N/A'} users</td>
+                                                <td className="py-2.5 mono text-rose-400">{inc.p95_ms ? `${Math.round(inc.p95_ms)}ms` : 'N/A'}</td>
+                                                <td className="py-2.5 mono text-blue-400">{inc.avg_rps ? `${inc.avg_rps} req/s` : 'N/A'}</td>
+                                                <td className="py-2.5 text-[#9499a8]">{inc.diagnosis || inc.failure_mode}</td>
+                                                <td className="py-2.5">
+                                                    <span className={`px-2 py-0.5 rounded text-[10px] ${inc.success ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800' : 'bg-amber-950/60 text-amber-400 border border-amber-800'}`}>
+                                                        {inc.success ? 'Resolved' : inc.status}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {incidents.length === 0 && (
+                                            <tr>
+                                                <td colSpan="8" className="py-8 text-center text-xs text-[#626777]">
+                                                    No past incidents recorded.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
+                    )}
 
-                    </div>
                 </div>
             );
         }
@@ -485,3 +994,4 @@
     </script>
 </body>
 </html>
+
