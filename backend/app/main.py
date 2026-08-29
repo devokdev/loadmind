@@ -22,10 +22,45 @@ from agents.diagnostician import diagnostician
 from agents.remediator import remediator
 from agents.learner import learner
 
-# Initialize database tables
-Base.metadata.create_all(bind=engine)
-
 app = FastAPI(title="LoadMind Autonomous Resilience Platform")
+
+@app.on_event("startup")
+def startup():
+    try:
+        from database import engine
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            # Safely create tables or alter existing old table schema
+            Base.metadata.create_all(bind=engine)
+            # Add missing columns if old Postgres volume was mounted
+            try:
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN IF NOT EXISTS name VARCHAR(255);"))
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN IF NOT EXISTS target_app_url VARCHAR(255);"))
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN IF NOT EXISTS http_method VARCHAR(16);"))
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN IF NOT EXISTS request_headers JSON;"))
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN IF NOT EXISTS payload_template TEXT;"))
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN IF NOT EXISTS user_persona VARCHAR(64);"))
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN IF NOT EXISTS load_profile VARCHAR(64);"))
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN IF NOT EXISTS max_concurrency INTEGER;"))
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN IF NOT EXISTS duration_seconds INTEGER;"))
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN IF NOT EXISTS breaking_point_users INTEGER;"))
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN IF NOT EXISTS p50_ms FLOAT;"))
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN IF NOT EXISTS p90_ms FLOAT;"))
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN IF NOT EXISTS p95_ms FLOAT;"))
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN IF NOT EXISTS p99_ms FLOAT;"))
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN IF NOT EXISTS avg_rps FLOAT;"))
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN IF NOT EXISTS peak_rps FLOAT;"))
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN IF NOT EXISTS total_requests INTEGER;"))
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN IF NOT EXISTS total_errors INTEGER;"))
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN IF NOT EXISTS error_rate FLOAT;"))
+                conn.execute(text("ALTER TABLE experiments ADD COLUMN IF NOT EXISTS telemetry_history JSON;"))
+                conn.commit()
+
+            except Exception as e:
+                print(f"Table migration check note: {e}")
+    except Exception as e:
+        print(f"Startup DB init error: {e}")
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -96,10 +131,15 @@ async def run_universal_stress_test(experiment_id: int, req_data: schemas.Experi
     max_users = req_data.max_concurrency or 100
     duration_total = req_data.duration_seconds or 30
 
-    # 1. If targeting internal app, inject failure mode if specified
-    if "localhost:8002" in target_url or "target-app" in target_url:
+    # 1. Resolve host network address for containerized backend
+    if "localhost:8002" in target_url or "127.0.0.1:8002" in target_url:
+        target_url = target_url.replace("localhost:8002", "target-app:8000").replace("127.0.0.1:8002", "target-app:8000")
+        
+    # Inject failure mode into target app if testing target-app
+    if "target-app" in target_url:
         docker_service.set_target_failure_mode(failure_mode)
         await asyncio.sleep(1.0)
+
 
     # 2. Concurrency step stages
     if req_data.load_profile == "spike":
@@ -124,8 +164,9 @@ async def run_universal_stress_test(experiment_id: int, req_data: schemas.Experi
     all_observed_errors = 0
     all_observed_requests = 0
 
-    # Check if Locust is running, else use high-performance built-in async load generator
-    use_locust = locust_service.is_available() and ("localhost:8002" in target_url or "target-app" in target_url)
+    # High-performance built-in async synthetic swarm for precise per-request latency & error tracking
+    use_locust = False
+
 
     for current_users in stages:
         if breaking_point_detected or active_tests_cancel_flags.get(experiment_id, False):
