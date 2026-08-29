@@ -11,6 +11,8 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Google Fonts: Inter & JetBrains Mono -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
@@ -183,13 +185,17 @@
             const [activeNav, setActiveNav] = useState("home");
             const [codeTab, setCodeTab] = useState("diff");
 
-            // Live telemetry data
+            // Dynamic Live Telemetry State
             const [metrics, setMetrics] = useState([]);
             const [diagnosis, setDiagnosis] = useState(null);
             const [remediation, setRemediation] = useState(null);
-            const [learningCount, setLearningCount] = useState(127);
+            const [verification, setVerification] = useState(null);
+            const [learningStats, setLearningStats] = useState(null);
+            const [incidents, setIncidents] = useState([]);
             const [currentTest, setCurrentTest] = useState(null);
 
+            const chartRef = useRef(null);
+            const chartInstance = useRef(null);
             const pollingTimer = useRef(null);
             const timerInterval = useRef(null);
 
@@ -198,16 +204,25 @@
                 return () => {
                     if (pollingTimer.current) clearInterval(pollingTimer.current);
                     if (timerInterval.current) clearInterval(timerInterval.current);
+                    if (chartInstance.current) chartInstance.current.destroy();
                 };
             }, []);
 
+            // Dynamically redraw waveform chart when metrics stream arrives
+            useEffect(() => {
+                if (chartRef.current) {
+                    renderWaveform();
+                }
+            }, [metrics]);
+
             const fetchInitialData = async () => {
                 try {
-                    const learnRes = await fetch("http://localhost:8001/api/learning");
-                    if (learnRes.ok) {
-                        const lData = await learnRes.json();
-                        setLearningCount(lData.signatures_learned || 127);
-                    }
+                    const [learnRes, incRes] = await Promise.all([
+                        fetch("http://localhost:8001/api/learning"),
+                        fetch("http://localhost:8001/api/incidents")
+                    ]);
+                    if (learnRes.ok) setLearningStats(await learnRes.json());
+                    if (incRes.ok) setIncidents(await incRes.json());
                 } catch (e) {}
             };
 
@@ -215,6 +230,7 @@
                 setIsTesting(true);
                 setDiagnosis(null);
                 setRemediation(null);
+                setVerification(null);
                 setMetrics([]);
 
                 let secs = 0;
@@ -249,9 +265,13 @@
                         const test = await res.json();
                         setCurrentTest(test);
                         pollTest(test.id);
+                    } else {
+                        setIsTesting(false);
+                        if (timerInterval.current) clearInterval(timerInterval.current);
                     }
                 } catch (e) {
                     setIsTesting(false);
+                    if (timerInterval.current) clearInterval(timerInterval.current);
                 }
             };
 
@@ -276,6 +296,7 @@
                                 clearInterval(timerInterval.current);
                                 setIsTesting(false);
                                 fetchAIResults(id);
+                                fetchInitialData();
                             }
                         }
                     } catch (e) {}
@@ -303,6 +324,128 @@
                     }
                 } catch (e) {}
             };
+
+            const verifyPostFix = async () => {
+                if (!currentTest) return;
+                setIsVerifying(true);
+                try {
+                    const res = await fetch(`http://localhost:8001/api/tests/${currentTest.id}/verify`, { method: "POST" });
+                    if (res.ok) {
+                        const data = await res.json();
+                        setVerification(data);
+                        fetchInitialData();
+                    }
+                    setIsVerifying(false);
+                } catch (e) {
+                    setIsVerifying(false);
+                }
+            };
+
+            const renderWaveform = () => {
+                const ctx = chartRef.current.getContext('2d');
+                const labels = metrics.length > 0 ? metrics.map((m, i) => m.timestamp || `${i}s`) : ['00:00', '01:00', '02:00', '03:00', '04:00', '05:00', '06:00', '07:00', '08:00', '09:00', '10:00'];
+                const p50s = metrics.length > 0 ? metrics.map(m => m.p50_ms || 160) : [140, 155, 162, 170, 165, 180, 162, 175, 160, 165, 170];
+                const p95s = metrics.length > 0 ? metrics.map(m => m.p95_ms || 812) : [620, 710, 780, 812, 790, 890, 812, 860, 800, 820, 812];
+                const p99s = metrics.length > 0 ? metrics.map(m => m.p99_ms || 1024) : [800, 920, 990, 1024, 980, 1100, 1024, 1080, 1010, 1040, 1024];
+                const rpss = metrics.length > 0 ? metrics.map(m => m.rps || 412) : [310, 380, 412, 430, 412, 450, 412, 440, 410, 425, 412];
+
+                if (chartInstance.current) {
+                    chartInstance.current.destroy();
+                }
+
+                const gradArea = ctx.createLinearGradient(0, 0, 0, 220);
+                gradArea.addColorStop(0, 'rgba(255, 255, 255, 0.22)');
+                gradArea.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
+
+                chartInstance.current = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'P95 Latency',
+                                data: p95s,
+                                borderColor: '#ffffff',
+                                backgroundColor: gradArea,
+                                fill: true,
+                                borderWidth: 1.8,
+                                pointRadius: metrics.length > 0 ? 2 : 0,
+                                pointBackgroundColor: '#ffffff',
+                                tension: 0.4,
+                                yAxisID: 'y'
+                            },
+                            {
+                                label: 'P99 Latency',
+                                data: p99s,
+                                borderColor: 'rgba(255, 255, 255, 0.45)',
+                                backgroundColor: 'transparent',
+                                borderWidth: 1.2,
+                                borderDash: [3, 3],
+                                pointRadius: 0,
+                                tension: 0.4,
+                                yAxisID: 'y'
+                            },
+                            {
+                                label: 'P50 Latency',
+                                data: p50s,
+                                borderColor: 'rgba(255, 255, 255, 0.25)',
+                                backgroundColor: 'transparent',
+                                borderWidth: 1.5,
+                                pointRadius: 0,
+                                tension: 0.4,
+                                yAxisID: 'y'
+                            },
+                            {
+                                label: 'RPS Throughput',
+                                data: rpss,
+                                borderColor: 'rgba(99, 102, 241, 0.6)',
+                                backgroundColor: 'transparent',
+                                borderWidth: 1.5,
+                                pointRadius: 0,
+                                tension: 0.4,
+                                yAxisID: 'y1'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: '#121520',
+                                borderColor: 'rgba(255, 255, 255, 0.15)',
+                                borderWidth: 1,
+                                titleColor: '#ffffff',
+                                bodyColor: '#cbd5e1',
+                                padding: 8,
+                                cornerRadius: 6
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { color: 'rgba(255, 255, 255, 0.03)' },
+                                ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
+                            },
+                            y: {
+                                type: 'linear',
+                                position: 'left',
+                                grid: { color: 'rgba(255, 255, 255, 0.03)' },
+                                ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
+                            },
+                            y1: {
+                                type: 'linear',
+                                position: 'right',
+                                grid: { drawOnChartArea: false },
+                                ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
+                            }
+                        }
+                    }
+                });
+            };
+
+            const latestMetric = metrics.length > 0 ? metrics[metrics.length - 1] : null;
 
             return (
                 <div className="flex min-h-screen w-full bg-[#0a0b0e] text-slate-100 selection:bg-indigo-500 selection:text-white">
@@ -385,12 +528,13 @@
                         <header className="h-16 border-b border-white/[0.05] px-8 flex items-center justify-between bg-[#0a0b0e]/80 backdrop-blur-md sticky top-0 z-20">
                             {/* Target Connected Pill */}
                             <div className="flex items-center space-x-2.5 bg-[#12141a] border border-white/[0.08] rounded-full pl-3 pr-4 py-1.5 shadow-inner">
-                                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                                <span className={`w-2 h-2 rounded-full ${isTesting ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}`}></span>
                                 <span className="text-xs text-slate-400 font-medium">Target Connected</span>
                                 <input 
                                     type="text" 
                                     value={targetUrl}
                                     onChange={(e) => setTargetUrl(e.target.value)}
+                                    disabled={isTesting}
                                     className="bg-transparent text-xs text-white font-mono outline-none border-none w-48 md:w-64"
                                 />
                                 <span className="text-xs text-slate-500">→</span>
@@ -436,14 +580,14 @@
                                             Simulate real-world load. Let AI find the weak spots. Build stronger systems.
                                         </p>
                                         
-                                        <div className="pt-2">
+                                        <div className="pt-2 flex items-center space-x-3">
                                             <button
                                                 onClick={runQuickTest}
                                                 disabled={isTesting || isVerifying}
                                                 className="bg-white text-black font-semibold text-xs px-5 py-2.5 rounded-full flex items-center space-x-2 hover:bg-slate-200 transition shadow-lg shadow-white/10"
                                             >
                                                 <span>▶</span>
-                                                <span>{isTesting ? 'Testing In Progress...' : 'Run a Quick Test'}</span>
+                                                <span>{isTesting ? `Simulating (${selectedScenario.concurrency} Users)...` : 'Run a Quick Test'}</span>
                                                 <span className="text-slate-600">→</span>
                                             </button>
                                         </div>
@@ -512,7 +656,10 @@
                                             return (
                                                 <div
                                                     key={s.id}
-                                                    onClick={() => setSelectedScenario(s)}
+                                                    onClick={() => {
+                                                        setSelectedScenario(s);
+                                                        setTargetUrl(s.target);
+                                                    }}
                                                     className={`ui-card p-4 h-40 flex flex-col justify-between cursor-pointer transition relative overflow-hidden ${
                                                         isSel ? 'border-white/20 bg-[#14161f]' : 'hover:border-white/10 hover:bg-[#12141a]'
                                                     }`}
@@ -533,6 +680,7 @@
                                                     </div>
 
                                                     <div className="flex items-center justify-between pt-1 z-10">
+                                                        <span className="text-[10px] text-slate-500 font-mono">{s.concurrency} Users</span>
                                                         <span className="w-6 h-6 rounded-full bg-white/[0.08] flex items-center justify-center text-[10px] text-slate-300">
                                                             →
                                                         </span>
@@ -550,7 +698,7 @@
                                             <span className="text-xs font-bold text-white uppercase tracking-wider">LIVE TELEMETRY</span>
                                             <span className="flex items-center space-x-1.5 text-[11px] text-slate-400 font-mono">
                                                 <span className={`w-1.5 h-1.5 rounded-full ${isTesting ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`}></span>
-                                                <span>{isTesting ? `Test Running • ${testTimer}` : `Test Running • ${testTimer}`}</span>
+                                                <span>{isTesting ? `Test Running • ${testTimer}` : 'System Standby'}</span>
                                             </span>
                                         </div>
 
@@ -567,63 +715,25 @@
                                         <div className="flex items-center space-x-5 text-[10px] text-slate-400 font-mono z-10">
                                             <div className="flex items-center space-x-1.5">
                                                 <span className="w-2 h-2 rounded-full bg-slate-500"></span>
-                                                <span>P50 162 ms</span>
+                                                <span>P50 {latestMetric ? `${Math.round(latestMetric.p50_ms || 160)} ms` : '162 ms'}</span>
                                             </div>
                                             <div className="flex items-center space-x-1.5 text-white font-medium">
                                                 <span className="w-2 h-2 rounded-full bg-white"></span>
-                                                <span>P95 812 ms</span>
+                                                <span>P95 {latestMetric ? `${Math.round(latestMetric.p95_ms || 812)} ms` : '812 ms'}</span>
                                             </div>
                                             <div className="flex items-center space-x-1.5">
                                                 <span className="w-2 h-2 rounded-full bg-slate-400"></span>
-                                                <span>P99 1024 ms</span>
+                                                <span>P99 {latestMetric ? `${Math.round(latestMetric.p99_ms || 1024)} ms` : '1024 ms'}</span>
                                             </div>
                                             <div className="flex items-center space-x-1.5">
-                                                <span className="w-2 h-2 rounded-full bg-slate-600"></span>
-                                                <span>RPS 412</span>
+                                                <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
+                                                <span>RPS {latestMetric ? `${latestMetric.rps}` : '412'}</span>
                                             </div>
                                         </div>
 
-                                        {/* Stylized SVG Multi-Line Waves */}
-                                        <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none" viewBox="0 0 800 200">
-                                            <defs>
-                                                <linearGradient id="waveGrad" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="0%" stopColor="rgba(255,255,255,0.18)" />
-                                                    <stop offset="100%" stopColor="rgba(255,255,255,0.0)" />
-                                                </linearGradient>
-                                            </defs>
-                                            {/* Area fill */}
-                                            <path d="M 0 160 Q 150 130 300 155 T 450 110 T 600 145 T 800 120 L 800 200 L 0 200 Z" fill="url(#waveGrad)" />
-                                            {/* Line 1 (P50) */}
-                                            <path d="M 0 175 Q 150 160 300 170 T 450 145 T 600 165 T 800 150" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" />
-                                            {/* Line 2 (P95 main white line) */}
-                                            <path d="M 0 160 Q 150 130 300 155 T 450 110 T 600 145 T 800 120" fill="none" stroke="#ffffff" strokeWidth="1.8" />
-                                            {/* Line 3 (P99 upper line) */}
-                                            <path d="M 0 145 Q 150 115 300 135 T 450 90 T 600 125 T 800 95" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.2" strokeDasharray="3 3" />
-                                        </svg>
-
-                                        {/* Hover Tooltip Box at P95 812ms marker */}
-                                        <div className="absolute left-[58%] top-[35%] -translate-x-1/2 z-20 flex flex-col items-center">
-                                            <div className="bg-[#121520] border border-white/20 rounded-md px-2.5 py-1 text-[10px] font-mono shadow-xl text-center">
-                                                <div className="text-white font-bold">P95 812 ms</div>
-                                                <div className="text-slate-400">RPS 412</div>
-                                            </div>
-                                            <div className="w-2 h-2 bg-white rounded-full mt-2 shadow-[0_0_8px_#ffffff]"></div>
-                                            <div className="w-[1px] h-16 bg-white/20"></div>
-                                        </div>
-
-                                        {/* Time axis */}
-                                        <div className="flex items-center justify-between text-[9px] text-slate-500 font-mono z-10 pt-4">
-                                            <span>00:00</span>
-                                            <span>01:00</span>
-                                            <span>02:00</span>
-                                            <span>03:00</span>
-                                            <span>04:00</span>
-                                            <span>05:00</span>
-                                            <span>06:00</span>
-                                            <span>07:00</span>
-                                            <span>08:00</span>
-                                            <span>09:00</span>
-                                            <span>10:00</span>
+                                        {/* Chart Canvas */}
+                                        <div className="absolute inset-0 pt-8 pb-2 px-3">
+                                            <canvas ref={chartRef}></canvas>
                                         </div>
                                     </div>
 
@@ -631,7 +741,9 @@
                                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-1">
                                         <div className="ui-card-subtle p-3">
                                             <div className="text-[9px] text-slate-400 uppercase font-semibold">REQUESTS / SEC</div>
-                                            <div className="text-base font-bold text-white font-mono mt-1">412.6</div>
+                                            <div className="text-base font-bold text-white font-mono mt-1">
+                                                {latestMetric ? latestMetric.rps : (currentTest?.avg_rps || '412.6')}
+                                            </div>
                                             <div className="text-[10px] text-emerald-400 flex items-center space-x-1 mt-0.5 font-mono">
                                                 <span>↑ 12.5%</span>
                                             </div>
@@ -639,7 +751,9 @@
 
                                         <div className="ui-card-subtle p-3">
                                             <div className="text-[9px] text-slate-400 uppercase font-semibold">P95 LATENCY</div>
-                                            <div className="text-base font-bold text-white font-mono mt-1">812 ms</div>
+                                            <div className="text-base font-bold text-white font-mono mt-1">
+                                                {latestMetric ? `${Math.round(latestMetric.p95_ms)} ms` : (currentTest?.p95_ms ? `${Math.round(currentTest.p95_ms)} ms` : '812 ms')}
+                                            </div>
                                             <div className="text-[10px] text-emerald-400 flex items-center space-x-1 mt-0.5 font-mono">
                                                 <span>↑ 15.7%</span>
                                             </div>
@@ -647,7 +761,9 @@
 
                                         <div className="ui-card-subtle p-3">
                                             <div className="text-[9px] text-slate-400 uppercase font-semibold">P99 LATENCY</div>
-                                            <div className="text-base font-bold text-white font-mono mt-1">1024 ms</div>
+                                            <div className="text-base font-bold text-white font-mono mt-1">
+                                                {latestMetric ? `${Math.round(latestMetric.p99_ms)} ms` : '1024 ms'}
+                                            </div>
                                             <div className="text-[10px] text-emerald-400 flex items-center space-x-1 mt-0.5 font-mono">
                                                 <span>↑ 18.9%</span>
                                             </div>
@@ -655,7 +771,9 @@
 
                                         <div className="ui-card-subtle p-3">
                                             <div className="text-[9px] text-slate-400 uppercase font-semibold">ERROR RATE</div>
-                                            <div className="text-base font-bold text-white font-mono mt-1">2.35%</div>
+                                            <div className="text-base font-bold text-white font-mono mt-1">
+                                                {latestMetric ? `${(latestMetric.error_rate * 100).toFixed(2)}%` : '2.35%'}
+                                            </div>
                                             <div className="text-[10px] text-emerald-400 flex items-center space-x-1 mt-0.5 font-mono">
                                                 <span>↓ 1.2%</span>
                                             </div>
@@ -663,7 +781,9 @@
 
                                         <div className="ui-card-subtle p-3">
                                             <div className="text-[9px] text-slate-400 uppercase font-semibold">TOTAL REQUESTS</div>
-                                            <div className="text-base font-bold text-white font-mono mt-1">248,162</div>
+                                            <div className="text-base font-bold text-white font-mono mt-1">
+                                                {currentTest?.total_requests ? currentTest.total_requests.toLocaleString() : '248,162'}
+                                            </div>
                                             <div className="text-[10px] text-emerald-400 flex items-center space-x-1 mt-0.5 font-mono">
                                                 <span>↑ 22.4%</span>
                                             </div>
@@ -685,7 +805,7 @@
                                             <span className="text-xs font-bold text-white tracking-wider uppercase">AI INSIGHT</span>
                                         </div>
                                         <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                            Analysis Complete
+                                            {diagnosis ? 'Analysis Complete' : 'Groq Engine Ready'}
                                         </span>
                                     </div>
 
@@ -699,9 +819,14 @@
                                     <div>
                                         <div className="text-[10px] text-slate-400 mb-1">Confidence</div>
                                         <div className="flex items-center space-x-3">
-                                            <div className="text-xs font-bold text-white font-mono">92%</div>
+                                            <div className="text-xs font-bold text-white font-mono">
+                                                {diagnosis ? `${Math.round(diagnosis.confidence * 100)}%` : '92%'}
+                                            </div>
                                             <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                                                <div className="h-full bg-white rounded-full w-[92%]"></div>
+                                                <div 
+                                                    className="h-full bg-white rounded-full transition-all duration-500"
+                                                    style={{ width: `${diagnosis ? Math.round(diagnosis.confidence * 100) : 92}%` }}
+                                                ></div>
                                             </div>
                                         </div>
                                     </div>
@@ -709,14 +834,14 @@
                                     <div>
                                         <div className="text-[10px] text-slate-400">Breaking Point</div>
                                         <div className="text-xs font-semibold text-white font-mono mt-0.5">
-                                            356 Concurrent Users
+                                            {currentTest?.breaking_point_users || 356} Concurrent Users
                                         </div>
                                     </div>
 
                                     <div>
                                         <div className="text-[10px] text-slate-400">Impact</div>
                                         <div className="text-[11px] text-slate-300 leading-relaxed mt-0.5">
-                                            Increased wait time and request timeouts as connection pool reached 100%.
+                                            {diagnosis?.recommended_action || 'Increased wait time and request timeouts as connection pool reached 100% saturation.'}
                                         </div>
                                     </div>
 
@@ -757,32 +882,49 @@
                                     </div>
 
                                     {/* Syntax Highlighted Code Box */}
-                                    <div className="bg-[#08090d] rounded-lg border border-white/[0.06] p-3 font-mono text-[10.5px] leading-relaxed">
-                                        <div className="flex items-center justify-between text-slate-500 pb-2 border-b border-white/[0.04]">
-                                            <span>connection.py</span>
-                                            <span>✕</span>
+                                    {codeTab === 'diff' ? (
+                                        <div className="bg-[#08090d] rounded-lg border border-white/[0.06] p-3 font-mono text-[10.5px] leading-relaxed max-h-48 overflow-y-auto">
+                                            <div className="flex items-center justify-between text-slate-500 pb-2 border-b border-white/[0.04]">
+                                                <span>patch.py</span>
+                                                <span>✕</span>
+                                            </div>
+                                            <pre className="pt-2 text-slate-400 whitespace-pre-wrap">
+{remediation?.patch_diff || `- engine = create_engine(DATABASE_URL)
++ engine = create_engine(
++     DATABASE_URL,
++     pool_size=20,
++     max_overflow=40,
++     pool_timeout=30,
++     pool_pre_ping=True
++ )`}
+                                            </pre>
                                         </div>
-                                        <div className="pt-2 text-slate-400 space-y-0.5">
-                                            <div className="text-rose-400 flex"><span className="w-5 text-slate-600 select-none">12</span><span>- engine = create_engine(DATABASE_URL)</span></div>
-                                            <div className="text-emerald-400 flex"><span className="w-5 text-slate-600 select-none">13</span><span>+ engine = create_engine(</span></div>
-                                            <div className="text-emerald-400 flex"><span className="w-5 text-slate-600 select-none">14</span><span>+     DATABASE_URL,</span></div>
-                                            <div className="text-emerald-400 flex"><span className="w-5 text-slate-600 select-none">15</span><span>+     pool_size=20,</span></div>
-                                            <div className="text-emerald-400 flex"><span className="w-5 text-slate-600 select-none">16</span><span>+     max_overflow=40,</span></div>
-                                            <div className="text-emerald-400 flex"><span className="w-5 text-slate-600 select-none">17</span><span>+     pool_timeout=30,</span></div>
-                                            <div className="text-emerald-400 flex"><span className="w-5 text-slate-600 select-none">18</span><span>+     pool_pre_ping=True</span></div>
-                                            <div className="text-emerald-400 flex"><span className="w-5 text-slate-600 select-none">19</span><span>+ )</span></div>
+                                    ) : (
+                                        <div className="bg-[#08090d] rounded-lg border border-white/[0.06] p-3 text-[11px] text-slate-300 leading-relaxed max-h-48 overflow-y-auto whitespace-pre-line">
+                                            {remediation?.architecture_advice || "1. Increase connection pool size (pool_size=20, max_overflow=40).\n2. Set pool_timeout=30s and enable pool_pre_ping to drop stale TCP connections.\n3. Add circuit breaker around persistent DB calls."}
                                         </div>
-                                    </div>
+                                    )}
 
                                     {/* Actions */}
                                     <div className="pt-1 flex items-center space-x-3">
-                                        <button
-                                            onClick={applyPatch}
-                                            className="bg-white text-black font-semibold text-xs px-4 py-2 rounded-full flex items-center justify-center space-x-1.5 flex-1 hover:bg-slate-200 transition"
-                                        >
-                                            <span>Apply Patch</span>
-                                            <span>→</span>
-                                        </button>
+                                        {!remediation?.is_applied ? (
+                                            <button
+                                                onClick={applyPatch}
+                                                className="bg-white text-black font-semibold text-xs px-4 py-2 rounded-full flex items-center justify-center space-x-1.5 flex-1 hover:bg-slate-200 transition"
+                                            >
+                                                <span>Apply Patch</span>
+                                                <span>→</span>
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={verifyPostFix}
+                                                disabled={isVerifying}
+                                                className="bg-indigo-600 text-white font-semibold text-xs px-4 py-2 rounded-full flex items-center justify-center space-x-1.5 flex-1 hover:bg-indigo-500 transition"
+                                            >
+                                                <span>{isVerifying ? 'Verifying...' : 'Verify Post-Fix'}</span>
+                                                <span>→</span>
+                                            </button>
+                                        )}
                                         <button className="text-xs text-slate-400 hover:text-white px-3 py-2 font-medium">
                                             View Full Diff
                                         </button>
@@ -796,22 +938,24 @@
                                             <span className="text-sm">🗃️</span>
                                             <span className="text-xs font-bold text-white tracking-wider uppercase">AI MEMORY</span>
                                         </div>
-                                        <span className="text-[10px] text-slate-500 font-mono">127 insights</span>
+                                        <span className="text-[10px] text-slate-500 font-mono">
+                                            {learningStats?.signatures_learned || incidents.length || 127} insights
+                                        </span>
                                     </div>
 
                                     <div className="space-y-2">
-                                        {[
-                                            { title: "db_pool_saturation", count: "12 similar cases" },
-                                            { title: "n_plus_one_queries", count: "8 similar cases" },
-                                            { title: "rate_limit_throttle", count: "6 similar cases" },
-                                        ].map((item, idx) => (
+                                        {(learningStats?.patterns && learningStats.patterns.length > 0 ? learningStats.patterns : [
+                                            { root_cause: "db_pool_saturation", times_encountered: 12 },
+                                            { root_cause: "n_plus_one_queries", times_encountered: 8 },
+                                            { root_cause: "rate_limit_throttle", times_encountered: 6 },
+                                        ]).slice(0, 3).map((item, idx) => (
                                             <div key={idx} className="flex items-center justify-between p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.04] hover:bg-white/[0.05] transition cursor-pointer text-xs">
                                                 <div className="flex items-center space-x-2.5">
                                                     <span className="w-3 h-3 rounded-full border border-slate-500"></span>
-                                                    <span className="font-mono text-slate-300">{item.title}</span>
+                                                    <span className="font-mono text-slate-300">{item.root_cause || item.title}</span>
                                                 </div>
                                                 <div className="flex items-center space-x-1.5 text-slate-500 font-mono text-[10px]">
-                                                    <span>{item.count}</span>
+                                                    <span>{item.times_encountered ? `${item.times_encountered} similar cases` : `${item.count}`}</span>
                                                     <span>›</span>
                                                 </div>
                                             </div>
