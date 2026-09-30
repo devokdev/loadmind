@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LoadMind — Find Breaking Points Before Your Users Do</title>
+    <title>LoadMind — Autonomous API Stress Testing & AI Performance Engineering</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & ReactDOM -->
@@ -14,96 +14,39 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Google Fonts: Inter & JetBrains Mono -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-page: #0a0b0e;
-            --sidebar-w: 220px;
-            --right-col-w: 380px;
+            --bg-page: #090b10;
+            --card-bg: #0f1219;
+            --border-color: rgba(255, 255, 255, 0.08);
         }
-
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background-color: var(--bg-page);
-            color: #ffffff;
+            color: #f1f5f9;
             -webkit-font-smoothing: antialiased;
-            overflow-x: hidden;
-            letter-spacing: -0.015em;
         }
-
         .mono {
             font-family: 'JetBrains Mono', monospace;
         }
-
-        /* Ambient glowing background */
-        .ambient-bg {
-            position: fixed;
-            inset: 0;
-            background: 
-                radial-gradient(circle at 75% 20%, rgba(30, 38, 60, 0.45) 0%, transparent 50%),
-                radial-gradient(circle at 10% 85%, rgba(18, 22, 34, 0.4) 0%, transparent 45%),
-                #0a0b0e;
-            z-index: -1;
-            pointer-events: none;
+        .devops-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
         }
-
-        /* 1:1 Precision Glass Cards matching reference image */
-        .ui-card {
-            background: #101217;
+        .devops-card-subtle {
+            background-color: #131722;
             border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 14px;
-            position: relative;
+            border-radius: 6px;
         }
-
-        .ui-card-subtle {
-            background: #11131a;
-            border: 1px solid rgba(255, 255, 255, 0.04);
-            border-radius: 12px;
-        }
-
-        .nav-item-active {
-            background: rgba(255, 255, 255, 0.07);
-            color: #ffffff;
-            border-radius: 10px;
-        }
-
-        /* Scenario Card Wave Graphic Bottom Overlay */
-        .card-wave-bg {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 55px;
-            background: radial-gradient(ellipse at 50% 120%, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.01) 60%, transparent 100%);
-            border-bottom-left-radius: 14px;
-            border-bottom-right-radius: 14px;
-            pointer-events: none;
-        }
-
-        .card-wave-bg-active {
-            background: radial-gradient(ellipse at 50% 120%, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.03) 70%, transparent 100%);
-        }
-
-        /* 3D Glass Node Animation */
-        .node-glow {
-            filter: drop-shadow(0 0 45px rgba(120, 140, 255, 0.22));
-            animation: floatNode 8s ease-in-out infinite alternate;
-        }
-
-        @keyframes floatNode {
-            0% { transform: translateY(0px) rotate(0deg); }
-            100% { transform: translateY(-8px) rotate(3deg); }
-        }
-
-        /* Scrollbar */
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
     </style>
 </head>
 <body class="min-h-screen">
-    <div class="ambient-bg"></div>
     <div id="root"></div>
 
     <script type="text/babel">
@@ -111,148 +54,162 @@
 
         const SCENARIOS = [
             {
-                id: "ecom",
+                id: "blocking_async",
                 name: "E-Commerce Checkout Stress",
-                subtitle: "Real checkout flow under sudden traffic spikes.",
+                endpoint: "/checkout/process",
                 target: "http://localhost:8002/checkout/process",
                 method: "GET",
                 persona: "e_commerce_shopper",
-                concurrency: 120,
-                duration: 20,
+                load_profile: "Step Ramp",
+                concurrency: 12,
+                duration: 10,
                 failure_mode: "blocking_async",
-                icon: (
-                    <svg className="w-5 h-5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                )
+                description: "Synchronous time.sleep(1.0) blocks the FastAPI single-threaded event loop."
             },
             {
-                id: "db_heavy",
+                id: "n_plus_one",
                 name: "Database Heavy /products",
-                subtitle: "Heavy read queries on product catalog.",
+                endpoint: "/products",
                 target: "http://localhost:8002/products",
                 method: "GET",
                 persona: "heavy_read",
-                concurrency: 80,
-                duration: 20,
+                load_profile: "Step Ramp",
+                concurrency: 15,
+                duration: 12,
                 failure_mode: "n_plus_one",
-                icon: (
-                    <svg className="w-5 h-5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-                    </svg>
-                )
+                description: "N+1 query amplification: executes a separate SQL query per product vendor in loop."
             },
             {
-                id: "login_surge",
-                name: "User Login Surge",
-                subtitle: "Massive login attempts with rate limit pressure.",
+                id: "db_pool",
+                name: "Connection Pool /db-status",
+                endpoint: "/db-status",
                 target: "http://localhost:8002/db-status",
                 method: "GET",
                 persona: "standard",
-                concurrency: 100,
-                duration: 20,
+                load_profile: "Step Ramp",
+                concurrency: 15,
+                duration: 12,
                 failure_mode: "db_pool",
-                icon: (
-                    <svg className="w-5 h-5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                )
+                description: "Holds database connection with pg_sleep(2.0), exhausting PostgreSQL pool limit."
             },
             {
-                id: "spiky_burst",
-                name: "Spiky Aggressive Burst",
-                subtitle: "Short high intensity bursts to find breaking points.",
-                target: "https://httpbin.org/get",
+                id: "public_httpbin",
+                name: "Public Internet Delayed API",
+                endpoint: "/delay/1",
+                target: "https://httpbin.org/delay/1",
                 method: "GET",
-                persona: "aggressive_burst",
-                concurrency: 60,
-                duration: 15,
-                failure_mode: "none",
-                icon: (
-                    <svg className="w-5 h-5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                )
+                persona: "external_service",
+                load_profile: "Step Ramp",
+                concurrency: 8,
+                duration: 10,
+                failure_mode: "high_network_latency",
+                description: "Real public internet server with artificial 1-second transit latency."
             }
         ];
 
         function App() {
             const [selectedScenario, setSelectedScenario] = useState(SCENARIOS[0]);
             const [targetUrl, setTargetUrl] = useState("http://localhost:8002/checkout/process");
-            const [isTesting, setIsTesting] = useState(false);
-            const [isVerifying, setIsVerifying] = useState(false);
-            const [testTimer, setTestTimer] = useState("00:07:42");
-            const [activeNav, setActiveNav] = useState("home");
-            const [codeTab, setCodeTab] = useState("diff");
+            const [concurrencyInput, setConcurrencyInput] = useState(12);
+            const [durationInput, setDurationInput] = useState(10);
+            
+            // Workflow States: IDLE, RUNNING, BREAKING_POINT_DETECTED, DIAGNOSIS_READY, PATCH_READY, PATCH_APPLIED, COMPLETED, FAILED
+            const [runState, setRunState] = useState("IDLE");
+            const [testTimer, setTestTimer] = useState("00:00");
+            const [activeNav, setActiveNav] = useState("dashboard");
 
-            // Dynamic Live Telemetry State
+            // Real Data Telemetry State
+            const [currentTest, setCurrentTest] = useState(null);
             const [metrics, setMetrics] = useState([]);
             const [diagnosis, setDiagnosis] = useState(null);
             const [remediation, setRemediation] = useState(null);
             const [verification, setVerification] = useState(null);
-            const [learningStats, setLearningStats] = useState(null);
-            const [incidents, setIncidents] = useState([]);
-            const [currentTest, setCurrentTest] = useState(null);
+            const [memoryStats, setMemoryStats] = useState(null);
+            const [incidentsList, setIncidentsList] = useState([]);
+            const [similarIncidents, setSimilarIncidents] = useState([]);
+            
+            // Real Timeline Events Log
+            const [timeline, setTimeline] = useState([]);
+            const [patchApplying, setPatchApplying] = useState(false);
+            const [patchStatusMsg, setPatchStatusMsg] = useState("");
+            const [isVerifying, setIsVerifying] = useState(false);
 
             const chartRef = useRef(null);
             const chartInstance = useRef(null);
-            const pollingTimer = useRef(null);
-            const timerInterval = useRef(null);
+            const pollIntervalRef = useRef(null);
+            const timerRef = useRef(null);
+
+            const addTimelineEvent = (msg, tag = "INFO") => {
+                const now = new Date();
+                const timeStr = now.toTimeString().split(" ")[0];
+                setTimeline(prev => [...prev, { time: timeStr, text: msg, tag }]);
+            };
 
             useEffect(() => {
-                fetchInitialData();
+                loadInitialSystemData();
                 return () => {
-                    if (pollingTimer.current) clearInterval(pollingTimer.current);
-                    if (timerInterval.current) clearInterval(timerInterval.current);
+                    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                    if (timerRef.current) clearInterval(timerRef.current);
                     if (chartInstance.current) chartInstance.current.destroy();
                 };
             }, []);
 
-            // Dynamically redraw waveform chart when metrics stream arrives
             useEffect(() => {
-                if (chartRef.current) {
-                    renderWaveform();
-                }
-            }, [metrics]);
+                renderObservabilityChart();
+            }, [metrics, currentTest]);
 
-            const fetchInitialData = async () => {
+            const loadInitialSystemData = async () => {
                 try {
                     const [learnRes, incRes] = await Promise.all([
                         fetch("http://localhost:8001/api/learning"),
                         fetch("http://localhost:8001/api/incidents")
                     ]);
-                    if (learnRes.ok) setLearningStats(await learnRes.json());
-                    if (incRes.ok) setIncidents(await incRes.json());
-                } catch (e) {}
+                    if (learnRes.ok) setMemoryStats(await learnRes.json());
+                    if (incRes.ok) {
+                        const list = await incRes.json();
+                        setIncidentsList(list);
+                    }
+                } catch (e) {
+                    console.error("Backend health check failed:", e);
+                }
             };
 
-            const runQuickTest = async () => {
-                setIsTesting(true);
+            const startStressTest = async (failureModeOverride = null, maxUsersOverride = null) => {
+                setRunState("RUNNING");
+                setMetrics([]);
                 setDiagnosis(null);
                 setRemediation(null);
                 setVerification(null);
-                setMetrics([]);
+                setSimilarIncidents([]);
+                setTimeline([]);
+                setPatchStatusMsg("");
 
-                let secs = 0;
-                if (timerInterval.current) clearInterval(timerInterval.current);
-                timerInterval.current = setInterval(() => {
-                    secs++;
-                    const h = String(Math.floor(secs / 3600)).padStart(2, '0');
-                    const m = String(Math.floor((secs % 3600) / 60)).padStart(2, '0');
-                    const s = String(secs % 60).padStart(2, '0');
-                    setTestTimer(`${h}:${m}:${s}`);
+                // Prevent React synthetic MouseEvent from being treated as failureModeOverride string
+                const activeMode = (typeof failureModeOverride === 'string') ? failureModeOverride : selectedScenario.failure_mode;
+                const activeConcurrency = (typeof maxUsersOverride === 'number') ? maxUsersOverride : (Number(concurrencyInput) || selectedScenario.concurrency);
+
+                addTimelineEvent(`Initiating ${selectedScenario.name}`, "START");
+                addTimelineEvent(`Target: ${targetUrl} (Mode: ${activeMode})`, "CONFIG");
+
+                let elapsed = 0;
+                if (timerRef.current) clearInterval(timerRef.current);
+                timerRef.current = setInterval(() => {
+                    elapsed++;
+                    const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                    const s = String(elapsed % 60).padStart(2, '0');
+                    setTestTimer(`${m}:${s}`);
                 }, 1000);
 
                 try {
                     const payload = {
-                        name: selectedScenario.name,
-                        target_app_url: targetUrl.includes("http") ? targetUrl : `http://${targetUrl}`,
+                        name: activeMode === "none" ? `${selectedScenario.name} (Remediated Baseline)` : selectedScenario.name,
+                        target_app_url: targetUrl.startsWith("http") ? targetUrl : `http://${targetUrl}`,
                         http_method: selectedScenario.method,
                         user_persona: selectedScenario.persona,
                         load_profile: "step_ramp",
-                        max_concurrency: selectedScenario.concurrency,
-                        duration_seconds: selectedScenario.duration,
-                        failure_mode: selectedScenario.failure_mode
+                        max_concurrency: activeConcurrency,
+                        duration_seconds: Number(durationInput) || selectedScenario.duration,
+                        failure_mode: activeMode
                     };
 
                     const res = await fetch("http://localhost:8001/api/tests/start", {
@@ -261,101 +218,180 @@
                         body: JSON.stringify(payload)
                     });
 
-                    if (res.ok) {
-                        const test = await res.json();
-                        setCurrentTest(test);
-                        pollTest(test.id);
-                    } else {
-                        setIsTesting(false);
-                        if (timerInterval.current) clearInterval(timerInterval.current);
+                    if (!res.ok) {
+                        setRunState("FAILED");
+                        addTimelineEvent("Failed to launch load test runner on backend", "ERROR");
+                        clearInterval(timerRef.current);
+                        return;
                     }
-                } catch (e) {
-                    setIsTesting(false);
-                    if (timerInterval.current) clearInterval(timerInterval.current);
+
+                    const testObj = await res.json();
+                    setCurrentTest(testObj);
+                    setRunState("RUNNING");
+                    addTimelineEvent(`Test Run #${testObj.id} started with step ramp load`, "EXEC");
+                    pollActiveTelemetry(testObj.id);
+
+                } catch (err) {
+                    console.error("Start test fetch error:", err);
+                    setRunState("FAILED");
+                    addTimelineEvent(`Connection error: ${err.message}`, "ERROR");
+                    clearInterval(timerRef.current);
                 }
             };
 
-            const pollTest = (id) => {
-                if (pollingTimer.current) clearInterval(pollingTimer.current);
-                pollingTimer.current = setInterval(async () => {
+            const pollActiveTelemetry = (testId) => {
+                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                
+                let detectedBpLogged = false;
+
+                pollIntervalRef.current = setInterval(async () => {
                     try {
                         const [tRes, mRes] = await Promise.all([
-                            fetch(`http://localhost:8001/api/tests/${id}`),
-                            fetch(`http://localhost:8001/api/tests/${id}/metrics`)
+                            fetch(`http://localhost:8001/api/tests/${testId}`),
+                            fetch(`http://localhost:8001/api/tests/${testId}/metrics`)
                         ]);
+
+                        if (mRes.ok) {
+                            const stream = await mRes.json();
+                            setMetrics(stream);
+
+                            if (stream.length > 0) {
+                                const latest = stream[stream.length - 1];
+                                if ((latest.p95_ms > 1000.0 || latest.error_rate > 0.05) && !detectedBpLogged) {
+                                    detectedBpLogged = true;
+                                    setRunState("BREAKING_POINT_DETECTED");
+                                    addTimelineEvent(`Breaking threshold exceeded: P95=${latest.p95_ms}ms, Error=${(latest.error_rate*100).toFixed(1)}% at ${latest.users} users`, "ALERT");
+                                }
+                            }
+                        }
 
                         if (tRes.ok) {
                             const t = await tRes.json();
                             setCurrentTest(t);
-                            if (mRes.ok) {
-                                const m = await mRes.json();
-                                setMetrics(m);
-                            }
+
                             if (t.status === "completed") {
-                                clearInterval(pollingTimer.current);
-                                clearInterval(timerInterval.current);
-                                setIsTesting(false);
-                                fetchAIResults(id);
-                                fetchInitialData();
+                                clearInterval(pollIntervalRef.current);
+                                clearInterval(timerRef.current);
+                                addTimelineEvent(`Load execution completed. Peak users: ${t.breaking_point_users || concurrencyInput}`, "COMPLETE");
+                                fetchAIDiagnosisAndRemediation(testId);
+                                loadInitialSystemData();
                             }
                         }
-                    } catch (e) {}
+                    } catch (e) {
+                        console.error("Telemetry polling error:", e);
+                    }
                 }, 1000);
             };
 
-            const fetchAIResults = async (id) => {
+            const fetchAIDiagnosisAndRemediation = async (testId) => {
+                setRunState("ANALYZING");
+                addTimelineEvent("Querying vector memory & Groq Diagnostician Agent...", "AI");
+
                 try {
-                    const [dRes, rRes] = await Promise.all([
-                        fetch(`http://localhost:8001/api/tests/${id}/diagnosis`),
-                        fetch(`http://localhost:8001/api/tests/${id}/remediation`)
+                    const [diagRes, remRes] = await Promise.all([
+                        fetch(`http://localhost:8001/api/tests/${testId}/diagnosis`),
+                        fetch(`http://localhost:8001/api/tests/${testId}/remediation`)
                     ]);
-                    if (dRes.ok) setDiagnosis(await dRes.json());
-                    if (rRes.ok) setRemediation(await rRes.json());
-                } catch (e) {}
+
+                    if (diagRes.ok) {
+                        const d = await diagRes.json();
+                        setDiagnosis(d);
+                        setRunState("DIAGNOSIS_READY");
+                        addTimelineEvent(`AI Diagnosis: ${d.primary_root_cause} (Confidence: ${Math.round(d.confidence*100)}%)`, "DIAG");
+                    }
+
+                    if (remRes.ok) {
+                        const r = await remRes.json();
+                        setRemediation(r);
+                        setRunState(r.is_applied ? "PATCH_APPLIED" : "PATCH_READY");
+                        addTimelineEvent(r.is_applied ? "Target remediation patch applied & verified" : "Target remediation patch prescription generated", "REMED");
+                    } else {
+                        setRunState("DIAGNOSIS_READY");
+                    }
+
+                    // Query matching incident memories
+                    const memRes = await fetch("http://localhost:8001/api/learning");
+                    if (memRes.ok) {
+                        const memData = await memRes.json();
+                        setMemoryStats(memData);
+                        if (memData.patterns && diagnosis) {
+                            setSimilarIncidents(memData.patterns.filter(p => p.root_cause === diagnosis?.primary_root_cause));
+                        }
+                    }
+                } catch (e) {
+                    console.error("AI diagnosis extraction error:", e);
+                    setRunState("DIAGNOSIS_READY");
+                    addTimelineEvent("AI diagnosis extraction error", "ERROR");
+                }
             };
 
-            const applyPatch = async () => {
+            const applyRemediationPatch = async () => {
                 if (!currentTest) return;
+                setPatchApplying(true);
+                setPatchStatusMsg("Applying code diff to target-app...");
+                addTimelineEvent("Applying code patch diff to target container...", "PATCH");
+
                 try {
+                    await new Promise(r => setTimeout(r, 600));
+                    setPatchStatusMsg("Restarting target-app container...");
+                    addTimelineEvent("Restarting target-app container via Docker API...", "DOCKER");
+
                     const res = await fetch(`http://localhost:8001/api/tests/${currentTest.id}/remediate`, { method: "POST" });
+                    
                     if (res.ok) {
                         const data = await res.json();
-                        setRemediation(data.remediation);
+                        setRemediation(data.remediation || data);
+                        setPatchStatusMsg("Target health check: 200 OK ✓");
+                        addTimelineEvent("Target restarted and verified healthy", "SUCCESS");
+                        setRunState("PATCH_APPLIED");
+                    } else {
+                        setPatchStatusMsg("Failed to apply patch");
+                        addTimelineEvent("Patch application error", "ERROR");
                     }
-                } catch (e) {}
+                } catch (e) {
+                    setPatchStatusMsg(`Error: ${e.message}`);
+                    addTimelineEvent(`Remediation error: ${e.message}`, "ERROR");
+                } finally {
+                    setPatchApplying(false);
+                }
             };
 
-            const verifyPostFix = async () => {
+            const runPostFixVerification = async () => {
                 if (!currentTest) return;
                 setIsVerifying(true);
+                addTimelineEvent("Running post-fix verification load at breaking concurrency...", "VERIFY");
+
                 try {
                     const res = await fetch(`http://localhost:8001/api/tests/${currentTest.id}/verify`, { method: "POST" });
                     if (res.ok) {
-                        const data = await res.json();
-                        setVerification(data);
-                        fetchInitialData();
+                        const vData = await res.json();
+                        setVerification(vData);
+                        setRunState("COMPLETED");
+                        addTimelineEvent(vData.summary, vData.success ? "VERIFIED" : "WARN");
+                        loadInitialSystemData();
+                    } else {
+                        addTimelineEvent("Post-fix verification run failed on backend", "ERROR");
                     }
-                    setIsVerifying(false);
                 } catch (e) {
+                    addTimelineEvent(`Verification failed: ${e.message}`, "ERROR");
+                } finally {
                     setIsVerifying(false);
                 }
             };
 
-            const renderWaveform = () => {
+            const renderObservabilityChart = () => {
+                if (!chartRef.current) return;
                 const ctx = chartRef.current.getContext('2d');
-                const labels = metrics.length > 0 ? metrics.map((m, i) => m.timestamp || `${i}s`) : ['00:00', '01:00', '02:00', '03:00', '04:00', '05:00', '06:00', '07:00', '08:00', '09:00', '10:00'];
-                const p50s = metrics.length > 0 ? metrics.map(m => m.p50_ms || 160) : [140, 155, 162, 170, 165, 180, 162, 175, 160, 165, 170];
-                const p95s = metrics.length > 0 ? metrics.map(m => m.p95_ms || 812) : [620, 710, 780, 812, 790, 890, 812, 860, 800, 820, 812];
-                const p99s = metrics.length > 0 ? metrics.map(m => m.p99_ms || 1024) : [800, 920, 990, 1024, 980, 1100, 1024, 1080, 1010, 1040, 1024];
-                const rpss = metrics.length > 0 ? metrics.map(m => m.rps || 412) : [310, 380, 412, 430, 412, 450, 412, 440, 410, 425, 412];
 
                 if (chartInstance.current) {
                     chartInstance.current.destroy();
                 }
 
-                const gradArea = ctx.createLinearGradient(0, 0, 0, 220);
-                gradArea.addColorStop(0, 'rgba(255, 255, 255, 0.22)');
-                gradArea.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
+                const labels = metrics.length > 0 ? metrics.map(m => m.timestamp) : ['00:00:00'];
+                const p95Data = metrics.length > 0 ? metrics.map(m => m.p95_ms) : [0];
+                const p50Data = metrics.length > 0 ? metrics.map(m => m.p50_ms) : [0];
+                const rpsData = metrics.length > 0 ? metrics.map(m => m.rps) : [0];
+                const errorData = metrics.length > 0 ? metrics.map(m => m.error_rate * 100) : [0];
 
                 chartInstance.current = new Chart(ctx, {
                     type: 'line',
@@ -363,47 +399,58 @@
                         labels: labels,
                         datasets: [
                             {
-                                label: 'P95 Latency',
-                                data: p95s,
-                                borderColor: '#ffffff',
-                                backgroundColor: gradArea,
+                                label: 'P95 Latency (ms)',
+                                data: p95Data,
+                                borderColor: '#38bdf8',
+                                backgroundColor: 'rgba(56, 189, 248, 0.08)',
                                 fill: true,
-                                borderWidth: 1.8,
-                                pointRadius: metrics.length > 0 ? 2 : 0,
-                                pointBackgroundColor: '#ffffff',
-                                tension: 0.4,
+                                borderWidth: 2,
+                                pointRadius: metrics.length > 0 ? 3 : 0,
+                                pointBackgroundColor: '#38bdf8',
+                                tension: 0.2,
                                 yAxisID: 'y'
                             },
                             {
-                                label: 'P99 Latency',
-                                data: p99s,
-                                borderColor: 'rgba(255, 255, 255, 0.45)',
+                                label: 'P50 Latency (ms)',
+                                data: p50Data,
+                                borderColor: '#94a3b8',
+                                backgroundColor: 'transparent',
+                                borderWidth: 1.5,
+                                pointRadius: 0,
+                                borderDash: [2, 2],
+                                tension: 0.2,
+                                yAxisID: 'y'
+                            },
+                            {
+                                label: 'Breaking Point Threshold (1000ms)',
+                                data: labels.map(() => 1000),
+                                borderColor: '#ef4444',
+                                backgroundColor: 'transparent',
+                                borderWidth: 1.5,
+                                borderDash: [6, 4],
+                                pointRadius: 0,
+                                tension: 0,
+                                yAxisID: 'y'
+                            },
+                            {
+                                label: 'Throughput (req/s)',
+                                data: rpsData,
+                                borderColor: '#818cf8',
+                                backgroundColor: 'transparent',
+                                borderWidth: 1.5,
+                                pointRadius: 0,
+                                tension: 0.2,
+                                yAxisID: 'y1'
+                            },
+                            {
+                                label: 'Error Rate (%)',
+                                data: errorData,
+                                borderColor: '#f87171',
                                 backgroundColor: 'transparent',
                                 borderWidth: 1.2,
-                                borderDash: [3, 3],
                                 pointRadius: 0,
-                                tension: 0.4,
-                                yAxisID: 'y'
-                            },
-                            {
-                                label: 'P50 Latency',
-                                data: p50s,
-                                borderColor: 'rgba(255, 255, 255, 0.25)',
-                                backgroundColor: 'transparent',
-                                borderWidth: 1.5,
-                                pointRadius: 0,
-                                tension: 0.4,
-                                yAxisID: 'y'
-                            },
-                            {
-                                label: 'RPS Throughput',
-                                data: rpss,
-                                borderColor: 'rgba(99, 102, 241, 0.6)',
-                                backgroundColor: 'transparent',
-                                borderWidth: 1.5,
-                                pointRadius: 0,
-                                tension: 0.4,
-                                yAxisID: 'y1'
+                                tension: 0.2,
+                                yAxisID: 'y2'
                             }
                         ]
                     },
@@ -412,33 +459,48 @@
                         maintainAspectRatio: false,
                         interaction: { mode: 'index', intersect: false },
                         plugins: {
-                            legend: { display: false },
+                            legend: {
+                                display: true,
+                                position: 'top',
+                                labels: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 10 }, boxWidth: 12 }
+                            },
                             tooltip: {
-                                backgroundColor: '#121520',
-                                borderColor: 'rgba(255, 255, 255, 0.15)',
+                                backgroundColor: '#0f172a',
+                                borderColor: 'rgba(255,255,255,0.1)',
                                 borderWidth: 1,
-                                titleColor: '#ffffff',
+                                titleColor: '#fff',
                                 bodyColor: '#cbd5e1',
-                                padding: 8,
-                                cornerRadius: 6
+                                titleFont: { family: 'JetBrains Mono', size: 11 },
+                                bodyFont: { family: 'JetBrains Mono', size: 10 }
                             }
                         },
                         scales: {
                             x: {
-                                grid: { color: 'rgba(255, 255, 255, 0.03)' },
-                                ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
+                                grid: { color: 'rgba(255, 255, 255, 0.04)' },
+                                ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 }, maxRotation: 0 }
                             },
                             y: {
                                 type: 'linear',
                                 position: 'left',
-                                grid: { color: 'rgba(255, 255, 255, 0.03)' },
+                                title: { display: true, text: 'Latency (ms)', color: '#64748b', font: { size: 10 } },
+                                grid: { color: 'rgba(255, 255, 255, 0.04)' },
                                 ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
                             },
                             y1: {
                                 type: 'linear',
                                 position: 'right',
+                                title: { display: true, text: 'RPS', color: '#818cf8', font: { size: 10 } },
                                 grid: { drawOnChartArea: false },
-                                ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
+                                ticks: { color: '#818cf8', font: { family: 'JetBrains Mono', size: 9 } }
+                            },
+                            y2: {
+                                type: 'linear',
+                                position: 'right',
+                                title: { display: false },
+                                min: 0,
+                                max: 100,
+                                grid: { drawOnChartArea: false },
+                                display: false
                             }
                         }
                     }
@@ -447,530 +509,710 @@
 
             const latestMetric = metrics.length > 0 ? metrics[metrics.length - 1] : null;
 
+            // Compute actual status code distribution percentages
+            const statusCodeCounts = latestMetric?.status_codes || {};
+            const totalStatusReqs = Object.values(statusCodeCounts).reduce((a, b) => a + b, 0) || 1;
+
             return (
-                <div className="flex min-h-screen w-full bg-[#0a0b0e] text-slate-100 selection:bg-indigo-500 selection:text-white">
+                <div className="flex min-h-screen w-full bg-[#090b10] text-slate-200">
                     
-                    {/* 1. LEFT SIDEBAR */}
-                    <aside className="w-[210px] shrink-0 border-r border-white/[0.06] flex flex-col justify-between p-5 bg-[#0b0c10]/95 backdrop-blur-xl fixed top-0 bottom-0 left-0 z-30">
-                        <div className="space-y-7">
+                    {/* LEFT SIDEBAR NAVIGATION */}
+                    <aside className="w-56 shrink-0 border-r border-white/[0.08] flex flex-col justify-between p-4 bg-[#0c0e15] fixed top-0 bottom-0 left-0 z-30">
+                        <div className="space-y-6">
                             {/* Brand Header */}
-                            <div className="flex items-center space-x-3 px-1 pt-1">
-                                <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                </svg>
+                            <div className="flex items-center space-x-2.5 px-2 pt-1">
+                                <div className="w-7 h-7 rounded bg-indigo-600 flex items-center justify-center font-black text-white text-xs">
+                                    LM
+                                </div>
                                 <div>
-                                    <div className="text-base font-bold tracking-tight text-white leading-none">LoadMind</div>
-                                    <div className="text-[9px] text-slate-500 tracking-wider font-semibold uppercase mt-1">STRESS • DIAGNOSE • EVOLVE</div>
+                                    <div className="text-sm font-bold tracking-tight text-white leading-none">LoadMind</div>
+                                    <div className="text-[9px] text-slate-500 font-mono tracking-wide uppercase mt-1">Autonomous DevOps</div>
                                 </div>
                             </div>
 
-                            {/* Nav Menu */}
+                            {/* Nav menu */}
                             <nav className="space-y-1">
-                                {[
-                                    { id: "home", label: "Home", icon: (
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                                        </svg>
-                                    )},
-                                    { id: "scenarios", label: "Scenarios", icon: (
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                                        </svg>
-                                    )},
-                                    { id: "memory", label: "AI Memory", icon: (
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                                        </svg>
-                                    )},
-                                    { id: "reports", label: "Reports", icon: (
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                        </svg>
-                                    )},
-                                    { id: "settings", label: "Settings", icon: (
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        </svg>
-                                    )},
-                                ].map((item) => (
-                                    <button
-                                        key={item.id}
-                                        onClick={() => setActiveNav(item.id)}
-                                        className={`w-full flex items-center space-x-3 px-3 py-2 text-xs font-medium transition ${
-                                            activeNav === item.id 
-                                                ? 'nav-item-active text-white' 
-                                                : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
-                                        }`}
-                                    >
-                                        <span className="text-slate-400">{item.icon}</span>
-                                        <span>{item.label}</span>
-                                    </button>
-                                ))}
+                                <button
+                                    onClick={() => setActiveNav("dashboard")}
+                                    className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded text-xs font-medium transition ${
+                                        activeNav === 'dashboard' ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30' : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
+                                    }`}
+                                >
+                                    <span>⚡</span>
+                                    <span>Stress Testing</span>
+                                </button>
+
+                                <button
+                                    onClick={() => setActiveNav("memory")}
+                                    className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded text-xs font-medium transition ${
+                                        activeNav === 'memory' ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30' : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
+                                    }`}
+                                >
+                                    <span>🗃️</span>
+                                    <span>AI Incident Memory</span>
+                                    {incidentsList.length > 0 && (
+                                        <span className="ml-auto text-[10px] font-mono bg-white/10 px-1.5 py-0.2 rounded text-slate-300">
+                                            {incidentsList.length}
+                                        </span>
+                                    )}
+                                </button>
                             </nav>
+
+                            {/* Active Pipeline Status */}
+                            <div className="devops-card-subtle p-3 space-y-2 border border-white/[0.06]">
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">DevOps Pipeline</div>
+                                <div className="space-y-1.5 text-[11px] font-mono">
+                                    <div className="flex items-center space-x-2">
+                                        <span className={runState === 'RUNNING' ? 'text-amber-400 animate-pulse' : (metrics.length > 0 ? 'text-emerald-400' : 'text-slate-600')}>
+                                            {runState === 'RUNNING' ? '●' : (metrics.length > 0 ? '✓' : '○')}
+                                        </span>
+                                        <span className="text-slate-300">1. SIMULATE</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <span className={metrics.length > 0 ? 'text-emerald-400' : 'text-slate-600'}>
+                                            {metrics.length > 0 ? '✓' : '○'}
+                                        </span>
+                                        <span className="text-slate-300">2. OBSERVE</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <span className={currentTest?.breaking_point_users ? 'text-red-400' : 'text-slate-600'}>
+                                            {currentTest?.breaking_point_users ? '✓' : '○'}
+                                        </span>
+                                        <span className="text-slate-300">3. DETECT</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <span className={diagnosis ? 'text-emerald-400' : (runState === 'ANALYZING' ? 'text-amber-400 animate-pulse' : 'text-slate-600')}>
+                                            {diagnosis ? '✓' : (runState === 'ANALYZING' ? '●' : '○')}
+                                        </span>
+                                        <span className="text-slate-300">4. DIAGNOSE</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <span className={remediation?.is_applied ? 'text-emerald-400' : (remediation ? 'text-indigo-400' : 'text-slate-600')}>
+                                            {remediation?.is_applied ? '✓' : (remediation ? '→' : '○')}
+                                        </span>
+                                        <span className="text-slate-300">5. REMEDIATE</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <span className={verification?.verified ? 'text-emerald-400' : 'text-slate-600'}>
+                                            {verification?.verified ? '✓' : '○'}
+                                        </span>
+                                        <span className="text-slate-300">6. LEARN</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        {/* Bottom Tagline & Version */}
-                        <div className="px-1 space-y-2 border-t border-white/[0.05] pt-4">
-                            <div className="text-[11px] text-slate-500 font-medium leading-tight">
-                                <div>Better</div>
-                                <div>Systems</div>
-                                <div>Every Run</div>
-                            </div>
-                            <div className="text-[10px] text-slate-600 font-mono pt-1">v1.0.0</div>
+                        {/* Environment metadata */}
+                        <div className="space-y-1 text-[10px] font-mono text-slate-500 pt-3 border-t border-white/[0.06]">
+                            <div>ENV: LOCAL / DOCKER</div>
+                            <div>BACKEND: http://localhost:8001</div>
+                            <div>TARGET: http://localhost:8002</div>
                         </div>
                     </aside>
 
-                    {/* MAIN SCROLLABLE VIEWPORT */}
-                    <div className="pl-[210px] flex-1 flex flex-col min-h-screen">
+                    {/* MAIN VIEWPORT */}
+                    <div className="pl-56 flex-1 flex flex-col min-h-screen">
                         
-                        {/* 2. TOP NAVBAR */}
-                        <header className="h-16 border-b border-white/[0.05] px-8 flex items-center justify-between bg-[#0a0b0e]/80 backdrop-blur-md sticky top-0 z-20">
-                            {/* Target Connected Pill */}
-                            <div className="flex items-center space-x-2.5 bg-[#12141a] border border-white/[0.08] rounded-full pl-3 pr-4 py-1.5 shadow-inner">
-                                <span className={`w-2 h-2 rounded-full ${isTesting ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}`}></span>
-                                <span className="text-xs text-slate-400 font-medium">Target Connected</span>
-                                <input 
-                                    type="text" 
-                                    value={targetUrl}
-                                    onChange={(e) => setTargetUrl(e.target.value)}
-                                    disabled={isTesting}
-                                    className="bg-transparent text-xs text-white font-mono outline-none border-none w-48 md:w-64"
-                                />
-                                <span className="text-xs text-slate-500">→</span>
+                        {/* 1. TOP DEVOPS HEADER BAR */}
+                        <header className="h-14 border-b border-white/[0.08] px-6 flex items-center justify-between bg-[#0b0e14] sticky top-0 z-20">
+                            <div className="flex items-center space-x-4">
+                                <div className="flex items-center space-x-2">
+                                    <span className="text-xs font-semibold text-slate-300">Target:</span>
+                                    <input 
+                                        type="text" 
+                                        value={targetUrl}
+                                        onChange={(e) => setTargetUrl(e.target.value)}
+                                        disabled={runState === 'RUNNING'}
+                                        className="bg-[#141824] border border-white/10 rounded px-2 py-1 text-xs font-mono text-white outline-none w-72 focus:border-indigo-500"
+                                    />
+                                </div>
+
+                                <div className="flex items-center space-x-2 text-xs font-mono">
+                                    <span className="text-slate-500">RUN:</span>
+                                    <span className="text-slate-300 font-bold">#{currentTest?.id ? String(currentTest.id).padStart(3, '0') : '001'}</span>
+                                </div>
                             </div>
 
-                            {/* Header Actions */}
-                            <div className="flex items-center space-x-4">
-                                <button className="text-slate-400 hover:text-white transition p-1.5">
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                                    </svg>
-                                </button>
-                                <div className="flex items-center space-x-2.5 pl-2 border-l border-white/[0.08]">
-                                    <div className="w-7 h-7 rounded-full bg-[#1b1e28] border border-white/[0.1] flex items-center justify-center font-bold text-white text-[10px] tracking-tight">
-                                        KD
-                                    </div>
-                                    <div className="text-left">
-                                        <div className="text-xs font-semibold text-white leading-tight">Kartavya</div>
-                                        <div className="text-[10px] text-slate-500 leading-tight">Engineering</div>
-                                    </div>
+                            <div className="flex items-center space-x-4 text-xs font-mono">
+                                <div className="flex items-center space-x-2">
+                                    <span className="text-slate-400">Status:</span>
+                                    <span className={`px-2 py-0.5 rounded font-bold uppercase text-[10px] ${
+                                        runState === 'RUNNING' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse' :
+                                        runState === 'BREAKING_POINT_DETECTED' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
+                                        runState === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                                        'bg-slate-800 text-slate-400'
+                                    }`}>
+                                        ● {runState}
+                                    </span>
+                                </div>
+
+                                <div className="text-slate-400 pl-3 border-l border-white/[0.08]">
+                                    Duration: <span className="text-white font-bold">{testTimer}</span>
                                 </div>
                             </div>
                         </header>
 
-                        {/* 3. DASHBOARD MAIN BODY (3-COLUMN EXACT REPRODUCTION) */}
-                        <div className="p-8 grid grid-cols-1 xl:grid-cols-12 gap-7">
-                            
-                            {/* LEFT + CENTER HERO & TELEMETRY REGION (8 Cols) */}
-                            <div className="xl:col-span-8 space-y-6">
+                        {/* 2. MAIN WORKSPACE */}
+                        {activeNav === "dashboard" ? (
+                            <div className="p-6 space-y-6 max-w-[1600px] w-full mx-auto">
                                 
-                                {/* HERO BANNER: "Find breaking points before your users do." */}
-                                <div className="ui-card p-8 flex flex-col md:flex-row items-center justify-between overflow-hidden relative min-h-[300px]">
-                                    {/* Left text */}
-                                    <div className="space-y-4 max-w-sm z-10">
-                                        <div className="text-[10px] font-bold text-slate-400 tracking-widest uppercase font-mono">
-                                            STRESS TODAY. RESILIENT TOMORROW.
+                                {/* SCENARIOS & RUN CONTROLLER */}
+                                <div className="devops-card p-5 space-y-4">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                        <div>
+                                            <h1 className="text-base font-bold text-white flex items-center space-x-2">
+                                                <span>Autonomous Stress Testing Engine</span>
+                                                <span className="text-xs font-normal text-slate-400 font-mono">(Step-Ramp Workload)</span>
+                                            </h1>
+                                            <p className="text-xs text-slate-400 mt-0.5">
+                                                Ramps synthetic concurrency until threshold triggered: <strong className="text-red-400 font-mono">P95 &gt; 1000ms</strong> or <strong className="text-red-400 font-mono">Error Rate &gt; 5%</strong>
+                                            </p>
                                         </div>
-                                        <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-[1.15]">
-                                            Find <span className="underline decoration-slate-400 decoration-1 underline-offset-4 font-normal">breaking points</span><br />
-                                            before your <span className="underline decoration-slate-400 decoration-1 underline-offset-4 font-normal">users do.</span>
-                                        </h1>
-                                        <p className="text-xs text-slate-400 leading-relaxed max-w-xs">
-                                            Simulate real-world load. Let AI find the weak spots. Build stronger systems.
-                                        </p>
-                                        
-                                        <div className="pt-2 flex items-center space-x-3">
+
+                                        {/* Action Controls */}
+                                        <div className="flex items-center space-x-3">
+                                            <div className="flex items-center space-x-2 bg-[#121622] border border-white/10 rounded px-2.5 py-1.5 text-xs font-mono">
+                                                <span className="text-slate-400">Max Users:</span>
+                                                <input 
+                                                    type="number"
+                                                    min="2"
+                                                    max="200"
+                                                    value={concurrencyInput}
+                                                    onChange={(e) => setConcurrencyInput(e.target.value)}
+                                                    disabled={runState === 'RUNNING'}
+                                                    className="w-12 bg-transparent text-white font-bold outline-none border-b border-slate-600 focus:border-indigo-400"
+                                                />
+                                            </div>
+
+                                            <div className="flex items-center space-x-2 bg-[#121622] border border-white/10 rounded px-2.5 py-1.5 text-xs font-mono">
+                                                <span className="text-slate-400">Duration:</span>
+                                                <input 
+                                                    type="number"
+                                                    min="5"
+                                                    max="60"
+                                                    value={durationInput}
+                                                    onChange={(e) => setDurationInput(e.target.value)}
+                                                    disabled={runState === 'RUNNING'}
+                                                    className="w-10 bg-transparent text-white font-bold outline-none border-b border-slate-600 focus:border-indigo-400"
+                                                />
+                                                <span className="text-slate-500">s</span>
+                                            </div>
+
                                             <button
-                                                onClick={runQuickTest}
-                                                disabled={isTesting || isVerifying}
-                                                className="bg-white text-black font-semibold text-xs px-5 py-2.5 rounded-full flex items-center space-x-2 hover:bg-slate-200 transition shadow-lg shadow-white/10"
+                                                onClick={() => startStressTest()}
+                                                disabled={runState === 'RUNNING' || isVerifying}
+                                                className={`px-4 py-2 rounded text-xs font-bold font-mono transition flex items-center space-x-2 ${
+                                                    runState === 'RUNNING'
+                                                        ? 'bg-amber-600/30 text-amber-300 border border-amber-500/50 cursor-not-allowed'
+                                                        : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow'
+                                                }`}
                                             >
-                                                <span>▶</span>
-                                                <span>{isTesting ? `Simulating (${selectedScenario.concurrency} Users)...` : 'Run a Quick Test'}</span>
-                                                <span className="text-slate-600">→</span>
+                                                <span>{runState === 'RUNNING' ? '⏳' : '▶'}</span>
+                                                <span>{runState === 'RUNNING' ? `Testing (${testTimer})...` : 'Run Stress Test'}</span>
                                             </button>
                                         </div>
                                     </div>
 
-                                    {/* 3D Glass Node Visual with Exact Callout Lines matching reference */}
-                                    <div className="relative w-[340px] h-[260px] flex items-center justify-center shrink-0 mt-6 md:mt-0">
-                                        
-                                        {/* Stylized 3D Glass Amorphous Solid */}
-                                        <div className="node-glow w-48 h-48 rounded-[45%_55%_65%_35%/50%_45%_55%_50%] bg-gradient-to-br from-slate-600 via-slate-900 to-black border border-white/20 shadow-[inset_0_0_30px_rgba(255,255,255,0.25),0_20px_50px_rgba(0,0,0,0.9)] relative flex items-center justify-center">
-                                            <div className="w-24 h-24 rounded-full bg-indigo-500/10 blur-xl"></div>
-                                        </div>
-
-                                        {/* Orbit lines & Callout 1: TEST */}
-                                        <div className="absolute top-4 left-6 flex items-start space-x-2">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-slate-300 mt-1"></span>
-                                            <div>
-                                                <div className="text-[11px] font-bold text-slate-200">TEST</div>
-                                                <div className="text-[10px] text-slate-500">Push limits</div>
-                                            </div>
-                                        </div>
-                                        <svg className="absolute top-12 left-16 w-24 h-16 pointer-events-none stroke-slate-600/60 fill-none" strokeWidth="1">
-                                            <path d="M 0 0 Q 30 20 65 35" />
-                                        </svg>
-
-                                        {/* Callout 2: DIAGNOSE */}
-                                        <div className="absolute top-1/2 -translate-y-4 right-0 flex items-start space-x-2">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-slate-300 mt-1"></span>
-                                            <div>
-                                                <div className="text-[11px] font-bold text-slate-200">DIAGNOSE</div>
-                                                <div className="text-[10px] text-slate-500">Find causes</div>
-                                            </div>
-                                        </div>
-                                        <svg className="absolute top-28 right-20 w-24 h-16 pointer-events-none stroke-slate-600/60 fill-none" strokeWidth="1">
-                                            <path d="M 50 0 Q 20 20 0 15" />
-                                        </svg>
-
-                                        {/* Callout 3: LEARN */}
-                                        <div className="absolute bottom-4 left-10 flex items-start space-x-2">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-slate-300 mt-1"></span>
-                                            <div>
-                                                <div className="text-[11px] font-bold text-slate-200">LEARN</div>
-                                                <div className="text-[10px] text-slate-500">Get stronger</div>
-                                            </div>
-                                        </div>
-                                        <svg className="absolute bottom-12 left-24 w-24 h-16 pointer-events-none stroke-slate-600/60 fill-none" strokeWidth="1">
-                                            <path d="M 0 35 Q 25 20 50 0" />
-                                        </svg>
-                                    </div>
-                                </div>
-
-                                {/* SECTION 2: DEMO SCENARIOS CARDS */}
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center space-x-2">
-                                            <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">DEMO SCENARIOS</span>
-                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                                            <span className="text-[11px] text-slate-400">Pick a scenario. See LoadMind in action.</span>
-                                        </div>
-                                        <span className="text-xs text-slate-400 hover:text-white cursor-pointer font-medium">View all →</span>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                                    {/* Scenario Preset Selector Cards */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
                                         {SCENARIOS.map((s) => {
                                             const isSel = selectedScenario.id === s.id;
                                             return (
-                                                <div
+                                                <button
                                                     key={s.id}
+                                                    disabled={runState === 'RUNNING'}
                                                     onClick={() => {
                                                         setSelectedScenario(s);
                                                         setTargetUrl(s.target);
+                                                        setConcurrencyInput(s.concurrency);
+                                                        setDurationInput(s.duration);
+                                                        setCurrentTest(null);
+                                                        setMetrics([]);
+                                                        setDiagnosis(null);
+                                                        setRemediation(null);
+                                                        setVerification(null);
+                                                        setRunState("IDLE");
                                                     }}
-                                                    className={`ui-card p-4 h-40 flex flex-col justify-between cursor-pointer transition relative overflow-hidden ${
-                                                        isSel ? 'border-white/20 bg-[#14161f]' : 'hover:border-white/10 hover:bg-[#12141a]'
+                                                    className={`p-3 rounded border text-left transition flex flex-col justify-between h-28 ${
+                                                        isSel 
+                                                            ? 'bg-indigo-950/40 border-indigo-500 text-white' 
+                                                            : 'bg-[#11141d] border-white/[0.06] text-slate-400 hover:border-white/20'
                                                     }`}
                                                 >
-                                                    {/* Bottom wave glow */}
-                                                    <div className={`card-wave-bg ${isSel ? 'card-wave-bg-active' : ''}`}></div>
-
-                                                    <div className="flex items-start justify-between z-10">
-                                                        <div className="text-slate-300">{s.icon}</div>
-                                                        {isSel && (
-                                                            <span className="w-2 h-2 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]"></span>
-                                                        )}
+                                                    <div>
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="font-bold text-xs text-white">{s.name}</div>
+                                                            {isSel && <span className="text-[10px] font-mono text-indigo-400 font-bold">ACTIVE</span>}
+                                                        </div>
+                                                        <div className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">{s.description}</div>
                                                     </div>
-
-                                                    <div className="z-10">
-                                                        <div className="text-xs font-bold text-white leading-snug">{s.name}</div>
-                                                        <div className="text-[10px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">{s.subtitle}</div>
+                                                    <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 pt-1 border-t border-white/[0.04]">
+                                                        <span>Mode: {s.failure_mode}</span>
+                                                        <span>{s.concurrency} Users</span>
                                                     </div>
-
-                                                    <div className="flex items-center justify-between pt-1 z-10">
-                                                        <span className="text-[10px] text-slate-500 font-mono">{s.concurrency} Users</span>
-                                                        <span className="w-6 h-6 rounded-full bg-white/[0.08] flex items-center justify-center text-[10px] text-slate-300">
-                                                            →
-                                                        </span>
-                                                    </div>
-                                                </div>
+                                                </button>
                                             );
                                         })}
                                     </div>
                                 </div>
 
-                                {/* SECTION 3: LIVE TELEMETRY CHART */}
-                                <div className="ui-card p-5 space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center space-x-3">
-                                            <span className="text-xs font-bold text-white uppercase tracking-wider">LIVE TELEMETRY</span>
-                                            <span className="flex items-center space-x-1.5 text-[11px] text-slate-400 font-mono">
-                                                <span className={`w-1.5 h-1.5 rounded-full ${isTesting ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`}></span>
-                                                <span>{isTesting ? `Test Running • ${testTimer}` : 'System Standby'}</span>
-                                            </span>
+                                {/* PRIMARY OBSERVABILITY REGION */}
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                                    
+                                    {/* LEFT: LIVE DEVOPS LATENCY CHART & LOAD PROFILE (8 cols) */}
+                                    <div className="lg:col-span-8 space-y-4">
+                                        <div className="devops-card p-4 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center space-x-3">
+                                                    <span className="text-xs font-bold text-white uppercase tracking-wide">Live Response Time & Throughput</span>
+                                                    <span className={`w-2 h-2 rounded-full ${runState === 'RUNNING' ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}`}></span>
+                                                </div>
+                                                
+                                                <div className="flex items-center space-x-4 text-xs font-mono text-slate-400">
+                                                    <span>Active Concurrency: <strong className="text-white">{latestMetric ? `${latestMetric.users} users` : (runState === 'RUNNING' ? `${concurrencyInput} users` : '0')}</strong></span>
+                                                    <span>Stage: <strong className="text-indigo-400">{latestMetric?.current_stage ? `${latestMetric.current_stage}/${latestMetric.total_stages}` : (runState === 'RUNNING' ? '1/4' : 'Idle')}</strong></span>
+                                                </div>
+                                            </div>
+
+                                            {/* Observability Chart Canvas */}
+                                            <div className="h-72 w-full bg-[#080a0f] rounded border border-white/[0.05] p-2">
+                                                <canvas ref={chartRef}></canvas>
+                                            </div>
+
+                                            {/* Real Load Profile Stage Stepper */}
+                                            <div className="devops-card-subtle p-3 space-y-2">
+                                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono flex items-center justify-between">
+                                                    <span>Active Load Profile: Step Ramp Progression</span>
+                                                    <span className="text-slate-500">Threshold: P95 &gt; 1000ms</span>
+                                                </div>
+                                                
+                                                <div className="grid grid-cols-5 gap-2 text-xs font-mono">
+                                                    {(latestMetric?.stages || [2, 5, 8, 12, 15]).map((stageUsers, idx) => {
+                                                        const isPassed = latestMetric && latestMetric.users > stageUsers;
+                                                        const isCurrent = latestMetric && latestMetric.users === stageUsers;
+                                                        const isBroken = currentTest?.breaking_point_users === stageUsers;
+
+                                                        return (
+                                                            <div 
+                                                                key={idx}
+                                                                className={`p-2 rounded border text-center ${
+                                                                    isBroken ? 'bg-red-950/50 border-red-500 text-red-300 font-bold' :
+                                                                    isCurrent ? 'bg-amber-950/40 border-amber-500 text-amber-200' :
+                                                                    isPassed ? 'bg-emerald-950/30 border-emerald-500/50 text-emerald-300' :
+                                                                    'bg-[#121520] border-white/[0.05] text-slate-500'
+                                                                }`}
+                                                            >
+                                                                <div className="text-[10px]">Stage {idx + 1}</div>
+                                                                <div className="text-xs font-bold mt-0.5">{stageUsers} Users</div>
+                                                                <div className="text-[9px] mt-0.5">
+                                                                    {isBroken ? '⚠ BROKE' : (isCurrent ? '● ACTIVE' : (isPassed ? '✓ PASS' : 'WAIT'))}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
                                         </div>
 
-                                        <div className="flex items-center space-x-2 bg-[#171a23] border border-white/[0.08] rounded-md px-2.5 py-1 text-[11px] text-slate-300 font-mono">
-                                            <span>Step Ramp-Up</span>
-                                            <span className="text-slate-500 text-[9px]">▼</span>
+                                        {/* REAL TELEMETRY OBSERVABILITY PANEL */}
+                                        <div className="devops-card p-4 space-y-3">
+                                            <div className="text-xs font-bold text-white uppercase tracking-wide flex items-center justify-between">
+                                                <span>Observed Telemetry Metrics (Real-Time)</span>
+                                                <span className="text-[10px] font-mono text-slate-500">Source: FastAPI synthetic collector + Prometheus</span>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 font-mono">
+                                                <div className="devops-card-subtle p-2.5">
+                                                    <div className="text-[10px] text-slate-400">P50 Latency</div>
+                                                    <div className="text-sm font-bold text-white mt-1">
+                                                        {latestMetric ? `${latestMetric.p50_ms} ms` : (currentTest?.p50_ms ? `${currentTest.p50_ms} ms` : 'Not run')}
+                                                    </div>
+                                                </div>
+
+                                                <div className="devops-card-subtle p-2.5">
+                                                    <div className="text-[10px] text-slate-400">P95 Latency</div>
+                                                    <div className={`text-sm font-bold mt-1 ${latestMetric?.p95_ms > 1000 ? 'text-red-400' : 'text-white'}`}>
+                                                        {latestMetric ? `${latestMetric.p95_ms} ms` : (currentTest?.p95_ms ? `${currentTest.p95_ms} ms` : 'Not run')}
+                                                    </div>
+                                                </div>
+
+                                                <div className="devops-card-subtle p-2.5">
+                                                    <div className="text-[10px] text-slate-400">P99 Latency</div>
+                                                    <div className="text-sm font-bold text-white mt-1">
+                                                        {latestMetric ? `${latestMetric.p99_ms} ms` : (currentTest?.p99_ms ? `${currentTest.p99_ms} ms` : 'Not run')}
+                                                    </div>
+                                                </div>
+
+                                                <div className="devops-card-subtle p-2.5">
+                                                    <div className="text-[10px] text-slate-400">Throughput</div>
+                                                    <div className="text-sm font-bold text-white mt-1">
+                                                        {latestMetric ? `${latestMetric.rps} req/s` : (currentTest?.avg_rps ? `${currentTest.avg_rps} req/s` : 'Not run')}
+                                                    </div>
+                                                </div>
+
+                                                <div className="devops-card-subtle p-2.5">
+                                                    <div className="text-[10px] text-slate-400">Error Rate</div>
+                                                    <div className={`text-sm font-bold mt-1 ${latestMetric?.error_rate > 0.05 ? 'text-red-400' : 'text-white'}`}>
+                                                        {latestMetric ? `${(latestMetric.error_rate * 100).toFixed(1)}%` : (currentTest?.error_rate !== undefined ? `${(currentTest.error_rate * 100).toFixed(1)}%` : '0.0%')}
+                                                    </div>
+                                                </div>
+
+                                                <div className="devops-card-subtle p-2.5">
+                                                    <div className="text-[10px] text-slate-400">Target CPU</div>
+                                                    <div className="text-sm font-bold text-slate-300 mt-1">
+                                                        {latestMetric?.cpu_percent > 0 ? `${latestMetric.cpu_percent}%` : 'Not available'}
+                                                    </div>
+                                                </div>
+
+                                                <div className="devops-card-subtle p-2.5">
+                                                    <div className="text-[10px] text-slate-400">Target Memory</div>
+                                                    <div className="text-sm font-bold text-slate-300 mt-1">
+                                                        {latestMetric?.memory_mb > 0 ? `${latestMetric.memory_mb} MB` : 'Not available'}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* HTTP Status Code Distribution */}
+                                            <div className="pt-2 flex items-center space-x-4 text-xs font-mono border-t border-white/[0.04]">
+                                                <span className="text-slate-400">HTTP Status Distribution:</span>
+                                                {Object.keys(statusCodeCounts).length > 0 ? (
+                                                    Object.entries(statusCodeCounts).map(([code, count]) => {
+                                                        const pct = Math.round((count / totalStatusReqs) * 100);
+                                                        const isErr = Number(code) >= 400;
+                                                        return (
+                                                            <div key={code} className="flex items-center space-x-1.5">
+                                                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${isErr ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                                                                    {code}
+                                                                </span>
+                                                                <span className="text-slate-300">{count} reqs ({pct}%)</span>
+                                                            </div>
+                                                        );
+                                                    })
+                                                ) : (
+                                                    <span className="text-slate-500">No requests recorded yet</span>
+                                                )}
+                                            </div>
                                         </div>
+
                                     </div>
 
-                                    {/* Multi-Waveform Canvas Area */}
-                                    <div className="h-56 w-full relative bg-[#0c0e14] rounded-lg border border-white/[0.04] p-4 flex flex-col justify-between overflow-hidden">
+                                    {/* RIGHT: AI DIAGNOSIS, REMEDIATION & VERIFICATION PIPELINE (4 cols) */}
+                                    <div className="lg:col-span-4 space-y-4">
                                         
-                                        {/* Legend top left */}
-                                        <div className="flex items-center space-x-5 text-[10px] text-slate-400 font-mono z-10">
-                                            <div className="flex items-center space-x-1.5">
-                                                <span className="w-2 h-2 rounded-full bg-slate-500"></span>
-                                                <span>P50 {latestMetric ? `${Math.round(latestMetric.p50_ms || 160)} ms` : '162 ms'}</span>
+                                        {/* 1. BREAKING POINT CALCULATION CARD */}
+                                        <div className={`devops-card p-4 border ${
+                                            currentTest?.breaking_point_users 
+                                                ? 'border-red-500/40 bg-[#171015]' 
+                                                : 'border-white/[0.08]'
+                                        }`}>
+                                            <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
+                                                <span className="text-xs font-bold text-white uppercase font-mono">Breaking Point Detection</span>
+                                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
+                                                    currentTest?.breaking_point_users ? 'bg-red-500 text-white' : 'bg-white/10 text-slate-400'
+                                                }`}>
+                                                    {currentTest?.breaking_point_users ? 'DETECTED' : (runState === 'RUNNING' ? 'MONITORING' : 'IDLE')}
+                                                </span>
                                             </div>
-                                            <div className="flex items-center space-x-1.5 text-white font-medium">
-                                                <span className="w-2 h-2 rounded-full bg-white"></span>
-                                                <span>P95 {latestMetric ? `${Math.round(latestMetric.p95_ms || 812)} ms` : '812 ms'}</span>
-                                            </div>
-                                            <div className="flex items-center space-x-1.5">
-                                                <span className="w-2 h-2 rounded-full bg-slate-400"></span>
-                                                <span>P99 {latestMetric ? `${Math.round(latestMetric.p99_ms || 1024)} ms` : '1024 ms'}</span>
-                                            </div>
-                                            <div className="flex items-center space-x-1.5">
-                                                <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
-                                                <span>RPS {latestMetric ? `${latestMetric.rps}` : '412'}</span>
+
+                                            <div className="mt-3 space-y-2">
+                                                <div>
+                                                    <div className="text-[10px] text-slate-400 font-mono">Max Sustainable Concurrency:</div>
+                                                    <div className="text-2xl font-black text-white font-mono mt-0.5">
+                                                        {currentTest?.breaking_point_users ? `${currentTest.breaking_point_users} Users` : (runState === 'RUNNING' ? 'Evaluating...' : 'Not Run')}
+                                                    </div>
+                                                </div>
+
+                                                <div className="text-xs font-mono text-slate-300">
+                                                    Trigger: <span className="text-red-400 font-bold">
+                                                        {currentTest?.p95_ms > 1000 ? `P95 Latency (${currentTest.p95_ms}ms > 1000ms)` : (currentTest?.error_rate > 0.05 ? `Error Rate (${(currentTest.error_rate*100).toFixed(1)}% > 5%)` : 'None')}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
 
-                                        {/* Chart Canvas */}
-                                        <div className="absolute inset-0 pt-8 pb-2 px-3">
-                                            <canvas ref={chartRef}></canvas>
-                                        </div>
-                                    </div>
+                                        {/* 2. AI ROOT-CAUSE DIAGNOSIS & EVIDENCE CARD */}
+                                        <div className="devops-card p-4 space-y-3">
+                                            <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
+                                                <span className="text-xs font-bold text-white uppercase font-mono">AI Root-Cause Diagnosis</span>
+                                                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300">
+                                                    {diagnosis ? `Confidence: ${Math.round(diagnosis.confidence * 100)}%` : 'Groq LLM Engine'}
+                                                </span>
+                                            </div>
 
-                                    {/* 5 Bottom Stat Cards with Trend Badges */}
-                                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-1">
-                                        <div className="ui-card-subtle p-3">
-                                            <div className="text-[9px] text-slate-400 uppercase font-semibold">REQUESTS / SEC</div>
-                                            <div className="text-base font-bold text-white font-mono mt-1">
-                                                {latestMetric ? latestMetric.rps : (currentTest?.avg_rps || '412.6')}
+                                            {diagnosis ? (
+                                                <div className="space-y-3 text-xs">
+                                                    <div>
+                                                        <div className="text-[10px] text-slate-400 font-mono uppercase">Probable Cause</div>
+                                                        <div className="flex items-center space-x-2 mt-0.5">
+                                                            <span className="text-sm font-bold text-indigo-300 font-mono">
+                                                                {diagnosis.primary_root_cause}
+                                                            </span>
+                                                            <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-200">
+                                                                {diagnosis.primary_root_cause === 'blocking_async' ? 'Thread Blocked by Sync Call' :
+                                                                 diagnosis.primary_root_cause === 'n_plus_one' ? 'Repeated Database Queries in Loop' :
+                                                                 diagnosis.primary_root_cause === 'db_pool' ? 'Database Connection Pool Starvation' :
+                                                                 diagnosis.primary_root_cause === 'unbounded_cache' ? 'Memory Leak (Unbounded Cache)' :
+                                                                 diagnosis.primary_root_cause === 'missing_index' ? 'Slow Table Scan (Missing Index)' :
+                                                                 'Performance Bottleneck'}
+                                                            </span>
+                                                        </div>
+                                                        
+                                                        {/* Simple Plain-English Explanation */}
+                                                        <div className="mt-2 p-2.5 rounded bg-indigo-950/30 border border-indigo-500/20 text-[11px] text-slate-200 leading-relaxed">
+                                                            <span className="font-bold text-indigo-300">💡 Simple Explanation: </span>
+                                                            {diagnosis.primary_root_cause === 'blocking_async' && "The endpoint used a synchronous time.sleep() which halted the server's single main thread. While 1 user was served, all other users were locked out and queued up, causing latency to spike past 2 seconds."}
+                                                            {diagnosis.primary_root_cause === 'n_plus_one' && "For every single item requested, the server fired a new SQL query to the database instead of loading them all in 1 batch, slowing down database responses under concurrent load."}
+                                                            {diagnosis.primary_root_cause === 'db_pool' && "The endpoint held onto database connections without releasing them. When more users connected, the database ran out of available connections and requests timed out."}
+                                                            {diagnosis.primary_root_cause === 'missing_index' && "The database had to scan every single row on disk to find the requested user orders because no search index was defined on user_id."}
+                                                            {diagnosis.primary_root_cause === 'unbounded_cache' && "The server stored every request payload into memory without deleting old items, causing memory usage to climb until the container slowed down."}
+                                                        </div>
+                                                    </div>
+
+                                                    <div>
+                                                        <div className="text-[10px] text-slate-400 font-mono uppercase">Why it Broke (Evidence)</div>
+                                                        <ul className="mt-1 space-y-1 text-slate-300 text-[11px] list-disc list-inside">
+                                                            {(diagnosis.evidence || []).map((ev, i) => (
+                                                                <li key={i}>{ev}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+
+                                                    {diagnosis.alternative_causes && diagnosis.alternative_causes.length > 0 && (
+                                                        <div>
+                                                            <div className="text-[10px] text-slate-400 font-mono uppercase">Alternative Causes</div>
+                                                            <div className="text-[11px] text-slate-400 font-mono">
+                                                                {diagnosis.alternative_causes.join(", ")}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="py-6 text-center text-xs text-slate-500 italic font-mono">
+                                                    {runState === 'ANALYZING' ? 'AI analyzing telemetry snapshot & memory...' : 'Run a stress test to trigger real-time AI diagnosis.'}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* 3. CODE REMEDIATION & VERIFICATION CARD */}
+                                        <div className="devops-card p-4 space-y-3 border-emerald-500/30">
+                                            <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
+                                                <span className="text-xs font-bold text-white uppercase font-mono">Remediation & Patch</span>
+                                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
+                                                    remediation?.is_applied ? 'bg-emerald-500 text-white' : (remediation ? 'bg-amber-500/20 text-amber-300' : 'bg-white/10 text-slate-400')
+                                                }`}>
+                                                    {remediation?.is_applied ? 'PATCH APPLIED' : (remediation ? 'PATCH READY' : 'IDLE')}
+                                                </span>
                                             </div>
-                                            <div className="text-[10px] text-emerald-400 flex items-center space-x-1 mt-0.5 font-mono">
-                                                <span>↑ 12.5%</span>
+
+                                            {/* Patch Code Diff Box */}
+                                            <div className="bg-[#08090d] rounded p-2.5 font-mono text-xs text-slate-300 border border-white/[0.06] max-h-36 overflow-y-auto">
+                                                {remediation?.patch_diff ? (
+                                                    <pre className="text-emerald-400 whitespace-pre-wrap text-[11px] leading-relaxed">{remediation.patch_diff}</pre>
+                                                ) : (
+                                                    <div className="py-4 text-center text-slate-500 italic text-[11px]">
+                                                        Awaiting load failure to generate automated prescription.
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {patchStatusMsg && (
+                                                <div className="text-[11px] font-mono text-amber-300 py-1">
+                                                    ⚙ {patchStatusMsg}
+                                                </div>
+                                            )}
+
+                                            {/* Remediation Action Buttons */}
+                                            <div className="flex items-center space-x-2 pt-1">
+                                                <button
+                                                    onClick={applyRemediationPatch}
+                                                    disabled={!remediation || remediation.is_applied || patchApplying}
+                                                    className={`flex-1 py-2 px-3 rounded text-xs font-bold font-mono transition ${
+                                                        remediation && !remediation.is_applied
+                                                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                                                            : 'bg-white/5 text-slate-600 cursor-not-allowed'
+                                                    }`}
+                                                >
+                                                    {patchApplying ? 'Applying...' : (remediation?.is_applied ? '✓ Patch Applied' : 'Apply Patch')}
+                                                </button>
+
+                                                <button
+                                                    onClick={runPostFixVerification}
+                                                    disabled={!remediation?.is_applied || isVerifying}
+                                                    className={`flex-1 py-2 px-3 rounded text-xs font-bold font-mono transition ${
+                                                        remediation?.is_applied && !isVerifying
+                                                            ? 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                                                            : 'bg-white/5 text-slate-600 cursor-not-allowed'
+                                                    }`}
+                                                >
+                                                    {isVerifying ? 'Verifying...' : 'Run Verification'}
+                                                </button>
+                                            </div>
+
+                                            {/* REAL MEASURED BEFORE VS AFTER VERIFICATION COMPARISON */}
+                                            {verification && (
+                                                <div className="mt-3 p-3 rounded bg-[#0d151e] border border-indigo-500/40 space-y-2 text-xs font-mono">
+                                                    <div className="flex items-center justify-between border-b border-white/[0.08] pb-1.5">
+                                                        <span className="font-bold text-indigo-300">Measured Verification Result:</span>
+                                                        <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${verification.success ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                                                            {verification.success ? 'PASSED STABILIZATION' : 'REGRESSION'}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                                                        <div className="p-2 rounded bg-black/40 border border-white/[0.04]">
+                                                            <div className="text-slate-500 uppercase text-[9px]">BEFORE FIX</div>
+                                                            <div className="text-white mt-0.5">P95: <strong>{verification.before?.p95_ms}ms</strong></div>
+                                                            <div className="text-slate-400">RPS: {verification.before?.rps}</div>
+                                                            <div className="text-red-400">Error: {(verification.before?.error_rate * 100).toFixed(1)}%</div>
+                                                        </div>
+
+                                                        <div className="p-2 rounded bg-emerald-950/20 border border-emerald-500/30">
+                                                            <div className="text-emerald-400 uppercase text-[9px]">AFTER FIX</div>
+                                                            <div className="text-white mt-0.5">P95: <strong>{verification.after?.p95_ms}ms</strong></div>
+                                                            <div className="text-slate-300">RPS: {verification.after?.rps}</div>
+                                                            <div className="text-emerald-400">Error: {(verification.after?.error_rate * 100).toFixed(1)}%</div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="text-[10px] text-slate-300 leading-relaxed pt-1">
+                                                        {verification.summary}
+                                                    </div>
+
+                                                    {/* Autonomous Loop Continuator: Run next stress test stage on improved API */}
+                                                    <div className="pt-2 border-t border-white/[0.08]">
+                                                        <button
+                                                            onClick={() => {
+                                                                // Increase concurrency limit to stress test the newly improved endpoint without re-injecting the old failure mode
+                                                                const nextConcurrency = Math.min(200, (currentTest?.breaking_point_users || 4) * 4);
+                                                                setConcurrencyInput(nextConcurrency);
+                                                                startStressTest("none", nextConcurrency);
+                                                            }}
+                                                            disabled={runState === 'RUNNING'}
+                                                            className="w-full py-2 px-3 rounded text-xs font-bold font-mono bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white transition flex items-center justify-center space-x-2 shadow-lg"
+                                                        >
+                                                            <span>🔁</span>
+                                                            <span>Run Next Stress Loop on Improved API (Ramp to {(currentTest?.breaking_point_users || 4) * 4} Users)</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* 4. REAL RUN TIMELINE & LOGS */}
+                                        <div className="devops-card p-4 space-y-2">
+                                            <div className="text-xs font-bold text-white uppercase font-mono flex items-center justify-between">
+                                                <span>DevOps Run Timeline</span>
+                                                <span className="text-[10px] text-slate-500">Live Engine Logs</span>
+                                            </div>
+                                            <div className="bg-[#08090d] rounded p-2 text-[11px] font-mono text-slate-400 border border-white/[0.05] h-36 overflow-y-auto space-y-1">
+                                                {timeline.length > 0 ? (
+                                                    timeline.map((item, idx) => (
+                                                        <div key={idx} className="flex items-start space-x-2">
+                                                            <span className="text-slate-600 shrink-0">{item.time}</span>
+                                                            <span className={`shrink-0 font-bold text-[9px] px-1 rounded ${
+                                                                item.tag === 'ALERT' ? 'bg-red-500/20 text-red-400' :
+                                                                item.tag === 'AI' ? 'bg-indigo-500/20 text-indigo-400' :
+                                                                item.tag === 'SUCCESS' || item.tag === 'VERIFIED' ? 'bg-emerald-500/20 text-emerald-400' :
+                                                                'bg-white/10 text-slate-300'
+                                                            }`}>
+                                                                {item.tag}
+                                                            </span>
+                                                            <span className="text-slate-300">{item.text}</span>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="text-slate-600 italic text-center py-4">Click "Run Stress Test" to begin engine execution log.</div>
+                                                )}
                                             </div>
                                         </div>
 
-                                        <div className="ui-card-subtle p-3">
-                                            <div className="text-[9px] text-slate-400 uppercase font-semibold">P95 LATENCY</div>
-                                            <div className="text-base font-bold text-white font-mono mt-1">
-                                                {latestMetric ? `${Math.round(latestMetric.p95_ms)} ms` : (currentTest?.p95_ms ? `${Math.round(currentTest.p95_ms)} ms` : '812 ms')}
-                                            </div>
-                                            <div className="text-[10px] text-emerald-400 flex items-center space-x-1 mt-0.5 font-mono">
-                                                <span>↑ 15.7%</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="ui-card-subtle p-3">
-                                            <div className="text-[9px] text-slate-400 uppercase font-semibold">P99 LATENCY</div>
-                                            <div className="text-base font-bold text-white font-mono mt-1">
-                                                {latestMetric ? `${Math.round(latestMetric.p99_ms)} ms` : '1024 ms'}
-                                            </div>
-                                            <div className="text-[10px] text-emerald-400 flex items-center space-x-1 mt-0.5 font-mono">
-                                                <span>↑ 18.9%</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="ui-card-subtle p-3">
-                                            <div className="text-[9px] text-slate-400 uppercase font-semibold">ERROR RATE</div>
-                                            <div className="text-base font-bold text-white font-mono mt-1">
-                                                {latestMetric ? `${(latestMetric.error_rate * 100).toFixed(2)}%` : '2.35%'}
-                                            </div>
-                                            <div className="text-[10px] text-emerald-400 flex items-center space-x-1 mt-0.5 font-mono">
-                                                <span>↓ 1.2%</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="ui-card-subtle p-3">
-                                            <div className="text-[9px] text-slate-400 uppercase font-semibold">TOTAL REQUESTS</div>
-                                            <div className="text-base font-bold text-white font-mono mt-1">
-                                                {currentTest?.total_requests ? currentTest.total_requests.toLocaleString() : '248,162'}
-                                            </div>
-                                            <div className="text-[10px] text-emerald-400 flex items-center space-x-1 mt-0.5 font-mono">
-                                                <span>↑ 22.4%</span>
-                                            </div>
-                                        </div>
                                     </div>
 
                                 </div>
 
                             </div>
-
-                            {/* RIGHT COLUMN (4 Cols): AI Insight, Remediation, AI Memory */}
-                            <div className="xl:col-span-4 space-y-6">
-                                
-                                {/* 1. AI INSIGHT CARD */}
-                                <div className="ui-card p-5 space-y-4">
-                                    <div className="flex items-center justify-between pb-2 border-b border-white/[0.05]">
-                                        <div className="flex items-center space-x-2">
-                                            <span className="text-sm">🧠</span>
-                                            <span className="text-xs font-bold text-white tracking-wider uppercase">AI INSIGHT</span>
+                        ) : (
+                            /* AI INCIDENT MEMORY & SELF-LEARNING EXPLORER VIEW */
+                            <div className="p-6 space-y-6 max-w-6xl w-full mx-auto">
+                                <div className="devops-card p-5 space-y-4">
+                                    <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+                                        <div>
+                                            <h2 className="text-lg font-bold text-white">Hybrid AI Incident Memory & Self-Learning System</h2>
+                                            <p className="text-xs text-slate-400 mt-0.5">
+                                                ChromaDB (Vector Failure Signatures) + PostgreSQL (Learned Patterns History)
+                                            </p>
                                         </div>
-                                        <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                            {diagnosis ? 'Analysis Complete' : 'Groq Engine Ready'}
-                                        </span>
-                                    </div>
-
-                                    <div>
-                                        <div className="text-[10px] text-slate-400">Root Cause Identified</div>
-                                        <div className="text-sm font-bold text-white font-mono mt-0.5 break-words">
-                                            {diagnosis ? diagnosis.primary_root_cause : 'database_connection_pool_saturation'}
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <div className="text-[10px] text-slate-400 mb-1">Confidence</div>
-                                        <div className="flex items-center space-x-3">
-                                            <div className="text-xs font-bold text-white font-mono">
-                                                {diagnosis ? `${Math.round(diagnosis.confidence * 100)}%` : '92%'}
-                                            </div>
-                                            <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                                                <div 
-                                                    className="h-full bg-white rounded-full transition-all duration-500"
-                                                    style={{ width: `${diagnosis ? Math.round(diagnosis.confidence * 100) : 92}%` }}
-                                                ></div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <div className="text-[10px] text-slate-400">Breaking Point</div>
-                                        <div className="text-xs font-semibold text-white font-mono mt-0.5">
-                                            {currentTest?.breaking_point_users || 356} Concurrent Users
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <div className="text-[10px] text-slate-400">Impact</div>
-                                        <div className="text-[11px] text-slate-300 leading-relaxed mt-0.5">
-                                            {diagnosis?.recommended_action || 'Increased wait time and request timeouts as connection pool reached 100% saturation.'}
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-1">
-                                        <button className="w-full py-2 rounded-lg bg-white/[0.05] hover:bg-white/[0.08] text-xs text-slate-300 font-medium flex items-center justify-between px-3 transition">
-                                            <span>View Full Analysis</span>
-                                            <span>→</span>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* 2. REMEDIATION CARD */}
-                                <div className="ui-card p-5 space-y-3.5">
-                                    <div className="flex items-center justify-between pb-2 border-b border-white/[0.05]">
-                                        <div className="flex items-center space-x-2">
-                                            <span className="text-sm">🛠️</span>
-                                            <span className="text-xs font-bold text-white tracking-wider uppercase">REMEDIATION</span>
-                                        </div>
-                                        <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                            Patch Generated
-                                        </span>
-                                    </div>
-
-                                    {/* Tabs */}
-                                    <div className="flex space-x-2 text-[11px]">
                                         <button 
-                                            onClick={() => setCodeTab("diff")}
-                                            className={`px-3 py-1 rounded-md transition ${codeTab === 'diff' ? 'bg-white/[0.08] text-white' : 'text-slate-400 hover:text-white'}`}
+                                            onClick={() => setActiveNav("dashboard")}
+                                            className="px-3 py-1.5 rounded text-xs font-mono bg-white/10 hover:bg-white/20 text-white transition"
                                         >
-                                            Code Diff
-                                        </button>
-                                        <button 
-                                            onClick={() => setCodeTab("arch")}
-                                            className={`px-3 py-1 rounded-md transition ${codeTab === 'arch' ? 'bg-white/[0.08] text-white' : 'text-slate-400 hover:text-white'}`}
-                                        >
-                                            Architecture Tips
+                                            ← Back to Stress Dashboard
                                         </button>
                                     </div>
 
-                                    {/* Syntax Highlighted Code Box */}
-                                    {codeTab === 'diff' ? (
-                                        <div className="bg-[#08090d] rounded-lg border border-white/[0.06] p-3 font-mono text-[10.5px] leading-relaxed max-h-48 overflow-y-auto">
-                                            <div className="flex items-center justify-between text-slate-500 pb-2 border-b border-white/[0.04]">
-                                                <span>patch.py</span>
-                                                <span>✕</span>
+                                    {/* Stats row */}
+                                    <div className="grid grid-cols-3 gap-4 font-mono text-center">
+                                        <div className="devops-card-subtle p-3">
+                                            <div className="text-[10px] text-slate-400 uppercase">Total Incidents Stored</div>
+                                            <div className="text-xl font-bold text-indigo-400 mt-1">
+                                                {incidentsList.length || memoryStats?.total_incidents_stored || 0}
                                             </div>
-                                            <pre className="pt-2 text-slate-400 whitespace-pre-wrap">
-{remediation?.patch_diff || `- engine = create_engine(DATABASE_URL)
-+ engine = create_engine(
-+     DATABASE_URL,
-+     pool_size=20,
-+     max_overflow=40,
-+     pool_timeout=30,
-+     pool_pre_ping=True
-+ )`}
-                                            </pre>
                                         </div>
-                                    ) : (
-                                        <div className="bg-[#08090d] rounded-lg border border-white/[0.06] p-3 text-[11px] text-slate-300 leading-relaxed max-h-48 overflow-y-auto whitespace-pre-line">
-                                            {remediation?.architecture_advice || "1. Increase connection pool size (pool_size=20, max_overflow=40).\n2. Set pool_timeout=30s and enable pool_pre_ping to drop stale TCP connections.\n3. Add circuit breaker around persistent DB calls."}
+                                        <div className="devops-card-subtle p-3">
+                                            <div className="text-[10px] text-slate-400 uppercase">Learned Signatures in ChromaDB</div>
+                                            <div className="text-xl font-bold text-emerald-400 mt-1">
+                                                {memoryStats?.signatures_learned || memoryStats?.patterns?.length || 0}
+                                            </div>
                                         </div>
-                                    )}
+                                        <div className="devops-card-subtle p-3">
+                                            <div className="text-[10px] text-slate-400 uppercase">Embedding Vector Dimension</div>
+                                            <div className="text-xs font-bold text-slate-200 mt-2">
+                                                all-MiniLM-L6-v2 (384-d)
+                                            </div>
+                                        </div>
+                                    </div>
 
-                                    {/* Actions */}
-                                    <div className="pt-1 flex items-center space-x-3">
-                                        {!remediation?.is_applied ? (
-                                            <button
-                                                onClick={applyPatch}
-                                                className="bg-white text-black font-semibold text-xs px-4 py-2 rounded-full flex items-center justify-center space-x-1.5 flex-1 hover:bg-slate-200 transition"
-                                            >
-                                                <span>Apply Patch</span>
-                                                <span>→</span>
-                                            </button>
+                                    {/* Incident History List */}
+                                    <div className="space-y-3 pt-2">
+                                        <div className="text-xs font-bold text-slate-300 uppercase font-mono">
+                                            Learned Failure Signatures & Recalled Remediations
+                                        </div>
+
+                                        {incidentsList.length > 0 ? (
+                                            incidentsList.map((inc) => (
+                                                <div key={inc.id} className="p-3.5 rounded-lg bg-[#0e121a] border border-white/[0.06] space-y-2 text-xs font-mono">
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center space-x-2">
+                                                            <span className="text-indigo-400 font-bold">Incident #{inc.id}</span>
+                                                            <span className="text-slate-300 font-bold">{inc.name || inc.failure_mode}</span>
+                                                        </div>
+                                                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">
+                                                            Stored in ChromaDB + Postgres
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-400 text-[11px]">
+                                                        <div>Target: <span className="text-white">{inc.target_app_url}</span></div>
+                                                        <div>Breaking Point: <span className="text-white">{inc.breaking_point_users || 'N/A'} users</span></div>
+                                                        <div>P95 Latency: <span className="text-white">{inc.p95_ms || 'N/A'} ms</span></div>
+                                                        <div>Root Cause: <span className="text-indigo-300 font-bold">{inc.diagnosis || inc.failure_mode}</span></div>
+                                                    </div>
+                                                </div>
+                                            ))
                                         ) : (
-                                            <button
-                                                onClick={verifyPostFix}
-                                                disabled={isVerifying}
-                                                className="bg-indigo-600 text-white font-semibold text-xs px-4 py-2 rounded-full flex items-center justify-center space-x-1.5 flex-1 hover:bg-indigo-500 transition"
-                                            >
-                                                <span>{isVerifying ? 'Verifying...' : 'Verify Post-Fix'}</span>
-                                                <span>→</span>
-                                            </button>
-                                        )}
-                                        <button className="text-xs text-slate-400 hover:text-white px-3 py-2 font-medium">
-                                            View Full Diff
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* 3. AI MEMORY DRAWER */}
-                                <div className="ui-card p-5 space-y-3">
-                                    <div className="flex items-center justify-between pb-2 border-b border-white/[0.05]">
-                                        <div className="flex items-center space-x-2">
-                                            <span className="text-sm">🗃️</span>
-                                            <span className="text-xs font-bold text-white tracking-wider uppercase">AI MEMORY</span>
-                                        </div>
-                                        <span className="text-[10px] text-slate-500 font-mono">
-                                            {learningStats?.signatures_learned || incidents.length || 127} insights
-                                        </span>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        {(learningStats?.patterns && learningStats.patterns.length > 0 ? learningStats.patterns : [
-                                            { root_cause: "db_pool_saturation", times_encountered: 12 },
-                                            { root_cause: "n_plus_one_queries", times_encountered: 8 },
-                                            { root_cause: "rate_limit_throttle", times_encountered: 6 },
-                                        ]).slice(0, 3).map((item, idx) => (
-                                            <div key={idx} className="flex items-center justify-between p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.04] hover:bg-white/[0.05] transition cursor-pointer text-xs">
-                                                <div className="flex items-center space-x-2.5">
-                                                    <span className="w-3 h-3 rounded-full border border-slate-500"></span>
-                                                    <span className="font-mono text-slate-300">{item.root_cause || item.title}</span>
-                                                </div>
-                                                <div className="flex items-center space-x-1.5 text-slate-500 font-mono text-[10px]">
-                                                    <span>{item.times_encountered ? `${item.times_encountered} similar cases` : `${item.count}`}</span>
-                                                    <span>›</span>
-                                                </div>
+                                            <div className="py-8 text-center text-slate-500 text-xs font-mono">
+                                                No incidents stored yet. Run stress tests to populate hybrid memory.
                                             </div>
-                                        ))}
+                                        )}
                                     </div>
                                 </div>
-
                             </div>
+                        )}
 
-                        </div>
-
-                        {/* 4. FOOTER BAR */}
-                        <footer className="mt-auto px-8 py-5 border-t border-white/[0.05] flex items-center justify-between text-[10px] text-slate-600 font-mono">
-                            <div>REAL TRAFFIC ➔ REAL INSIGHTS ➔ STRONGER SYSTEMS</div>
-                            <div>LoadMind</div>
+                        {/* FOOTER */}
+                        <footer className="mt-auto px-6 py-4 border-t border-white/[0.05] flex items-center justify-between text-[10px] text-slate-500 font-mono">
+                            <div>LOADMIND DEVOPS AUTOMATION • SIMULATE ➔ OBSERVE ➔ DETECT ➔ DIAGNOSE ➔ REMEDIATE ➔ LEARN</div>
+                            <div>BREAKING THRESHOLD: P95 &gt; 1000ms</div>
                         </footer>
 
                     </div>

@@ -162,8 +162,8 @@ async def checkout_process():
         time.sleep(1.0)
         return {"status": "processed", "type": "blocking"}
     else:
-        # Properly yield execution back to the event loop
-        await asyncio.sleep(1.0)
+        # Fast non-blocking async execution
+        await asyncio.sleep(0.01)
         return {"status": "processed", "type": "async"}
 
 # Route 5: Database Connection Pool Exhaustion (Route holding DB connections)

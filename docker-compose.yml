@@ -2,8 +2,7 @@ version: '3.8'
 
 networks:
   loadmind-network:
-    name: loadmind-network
-    driver: bridge
+    external: true
 
 services:
   postgres:
@@ -91,6 +90,7 @@ services:
       - GROQ_MODEL=${GROQ_MODEL}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./backend/app:/app
       - ./target-app:/target-app
     depends_on:
       - postgres
@@ -105,6 +105,8 @@ services:
     container_name: loadmind-frontend
     ports:
       - "8080:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html
     networks:
       - loadmind-network
 
