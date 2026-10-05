@@ -1386,26 +1386,43 @@
                                         </div>
 
                                         {incidentsList.length > 0 ? (
-                                            incidentsList.map((inc) => (
-                                                <div key={inc.id} className="p-3.5 rounded bg-[#12141c] border border-white/[0.04] space-y-2 text-xs font-mono">
-                                                    <div className="flex items-center justify-between">
-                                                        <div className="flex items-center space-x-2">
-                                                            <span className="text-white font-semibold">Incident #{inc.id}</span>
-                                                            <span className="text-slate-300 font-semibold">{inc.name || inc.failure_mode}</span>
+                                            incidentsList.map((inc) => {
+                                                const isFailureIncident = Boolean(inc.failure_mode && inc.failure_mode !== "none" && inc.breaking_point_users);
+                                                const isRemediatedRun = inc.name?.includes("Remediated Baseline") || inc.failure_mode === "none";
+                                                
+                                                return (
+                                                    <div key={inc.id} className="p-3.5 rounded bg-[#12141c] border border-white/[0.04] space-y-2 text-xs font-mono">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center space-x-2">
+                                                                <span className="text-white font-semibold">Run #{inc.id}</span>
+                                                                <span className="text-slate-300 font-semibold">{inc.name || inc.failure_mode}</span>
+                                                            </div>
+                                                            <span className={`text-[10px] px-2 py-0.5 rounded border ${
+                                                                isRemediatedRun
+                                                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                                                    : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                                            }`}>
+                                                                {isRemediatedRun ? '✓ Patched & Verified Baseline' : '⚠️ Root-Cause Incident Vector'}
+                                                            </span>
                                                         </div>
-                                                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">
-                                                            Stored in ChromaDB + Postgres
-                                                        </span>
-                                                    </div>
 
-                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-400 text-[11px]">
-                                                        <div>Target: <span className="text-white">{inc.target_app_url}</span></div>
-                                                        <div>Breaking Point: <span className="text-white">{inc.breaking_point_users || 'N/A'} users</span></div>
-                                                        <div>P95 Latency: <span className="text-white">{inc.p95_ms || 'N/A'} ms</span></div>
-                                                        <div>Root Cause: <span className="text-slate-200 font-semibold">{inc.diagnosis || inc.failure_mode}</span></div>
+                                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-400 text-[11px]">
+                                                            <div>Target: <span className="text-white">{inc.target_app_url}</span></div>
+                                                            <div>
+                                                                {isRemediatedRun ? 'Sustained Concurrency: ' : 'Breaking Point: '}
+                                                                <span className="text-white">{inc.breaking_point_users || 'N/A'} users</span>
+                                                            </div>
+                                                            <div>P95 Latency: <span className="text-white">{inc.p95_ms || 'N/A'} ms</span></div>
+                                                            <div>
+                                                                {isRemediatedRun ? 'Status: ' : 'Root Cause: '}
+                                                                <span className={isRemediatedRun ? "text-emerald-400 font-semibold" : "text-slate-200 font-semibold"}>
+                                                                    {isRemediatedRun ? 'Healthy Baseline' : (inc.diagnosis || inc.failure_mode)}
+                                                                </span>
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            ))
+                                                );
+                                            })
                                         ) : (
                                             <div className="py-8 text-center text-slate-500 text-xs font-mono">
                                                 No incidents stored yet. Run stress tests to populate hybrid memory.
