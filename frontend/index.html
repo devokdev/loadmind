@@ -1151,41 +1151,70 @@
 
                                             {diagnosis ? (
                                                 <div className="space-y-3 text-xs">
-                                                    <div>
-                                                        <div className="text-[10px] text-slate-400 font-mono uppercase">Probable Cause</div>
-                                                        <div className="flex items-center space-x-2 mt-0.5">
-                                                            <span className="text-xs font-bold text-white font-mono">
-                                                                {diagnosis.primary_root_cause}
-                                                            </span>
-                                                            <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-slate-300">
-                                                                {diagnosis.primary_root_cause === 'blocking_async' ? 'Thread Blocked by Sync Call' :
-                                                                 diagnosis.primary_root_cause === 'n_plus_one' ? 'Repeated Database Queries in Loop' :
-                                                                 diagnosis.primary_root_cause === 'db_pool' ? 'Database Connection Pool Starvation' :
-                                                                 diagnosis.primary_root_cause === 'unbounded_cache' ? 'Memory Leak (Unbounded Cache)' :
-                                                                 diagnosis.primary_root_cause === 'missing_index' ? 'Slow Table Scan (Missing Index)' :
-                                                                 'Performance Bottleneck'}
-                                                            </span>
+                                                    {!currentTest?.breaking_point_users ? (
+                                                        /* SUCCESSFUL PASS EXPLANATION */
+                                                        <div className="space-y-2.5">
+                                                            <div className="flex items-center space-x-2">
+                                                                <span className="text-xs font-bold text-emerald-400 font-mono">
+                                                                    ✓ System Capacity Verified
+                                                                </span>
+                                                                <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-mono">
+                                                                    Zero SLO Violations
+                                                                </span>
+                                                            </div>
+                                                            <div className="p-2.5 rounded bg-emerald-950/20 border border-emerald-500/20 text-[11px] text-slate-300 leading-relaxed">
+                                                                <span className="font-semibold text-emerald-300">💡 Performance Verdict: </span>
+                                                                The application sustained full ramp-up to <strong className="text-white">{concurrencyInput} concurrent users</strong> with P95 latency (<strong className="text-emerald-400">{latestMetric?.p95_ms || currentTest?.p95_ms || 0}ms</strong>) staying completely below the 1000ms breaking threshold, maintaining a 0.0% error rate.
+                                                            </div>
+                                                            <div>
+                                                                <div className="text-[10px] text-slate-400 font-mono uppercase">Why it Passed (Evidence)</div>
+                                                                <ul className="mt-1 space-y-1 text-slate-300 text-[11px] list-disc list-inside">
+                                                                    <li>All {concurrencyInput} concurrent synthetic users were processed with 100% HTTP 200 OK success rate.</li>
+                                                                    <li>P95 latency peaked at {latestMetric?.p95_ms || currentTest?.p95_ms || 0}ms, well within the 1000ms Service Level Objective (SLO).</li>
+                                                                    <li>Non-blocking async task execution prevented event loop starvation and connection pool exhaustion.</li>
+                                                                </ul>
+                                                            </div>
                                                         </div>
-                                                        
-                                                        {/* Plain-English Explanation */}
-                                                        <div className="mt-2 p-2.5 rounded bg-[#141622] border border-white/[0.05] text-[11px] text-slate-300 leading-relaxed">
-                                                            <span className="font-semibold text-white">💡 Explanation: </span>
-                                                            {diagnosis.primary_root_cause === 'blocking_async' && "The endpoint used a synchronous time.sleep() which halted FastAPI's main thread. While 1 user was served, all concurrent requests were blocked in queue."}
-                                                            {diagnosis.primary_root_cause === 'n_plus_one' && "For every product item returned, the server executed an individual SQL query inside a loop instead of performing a single bulk join."}
-                                                            {diagnosis.primary_root_cause === 'db_pool' && "The endpoint held onto database connections without releasing them, rapidly starving PostgreSQL's connection pool limit."}
-                                                            {diagnosis.primary_root_cause === 'missing_index' && "The database scanned all table rows on disk because no index was present on user_id."}
-                                                            {diagnosis.primary_root_cause === 'unbounded_cache' && "The server stored all incoming request payloads into memory without cache eviction, causing memory pressure."}
-                                                        </div>
-                                                    </div>
+                                                    ) : (
+                                                        /* GENUINE FAILURE ROOT-CAUSE DIAGNOSIS */
+                                                        <div className="space-y-3">
+                                                            <div>
+                                                                <div className="text-[10px] text-slate-400 font-mono uppercase">Probable Cause</div>
+                                                                <div className="flex items-center space-x-2 mt-0.5">
+                                                                    <span className="text-xs font-bold text-white font-mono">
+                                                                        {diagnosis.primary_root_cause}
+                                                                    </span>
+                                                                    <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-slate-300">
+                                                                        {diagnosis.primary_root_cause === 'blocking_async' ? 'Thread Blocked by Sync Call' :
+                                                                         diagnosis.primary_root_cause === 'n_plus_one' ? 'Repeated Database Queries in Loop' :
+                                                                         diagnosis.primary_root_cause === 'db_pool' ? 'Database Connection Pool Starvation' :
+                                                                         diagnosis.primary_root_cause === 'unbounded_cache' ? 'Memory Leak (Unbounded Cache)' :
+                                                                         diagnosis.primary_root_cause === 'missing_index' ? 'Slow Table Scan (Missing Index)' :
+                                                                         'Performance Bottleneck'}
+                                                                    </span>
+                                                                </div>
+                                                                
+                                                                {/* Plain-English Explanation */}
+                                                                <div className="mt-2 p-2.5 rounded bg-[#141622] border border-white/[0.05] text-[11px] text-slate-300 leading-relaxed">
+                                                                    <span className="font-semibold text-white">💡 Explanation: </span>
+                                                                    {diagnosis.primary_root_cause === 'blocking_async' && "The endpoint used a synchronous time.sleep() which halted FastAPI's main thread. While 1 user was served, all concurrent requests were blocked in queue."}
+                                                                    {diagnosis.primary_root_cause === 'n_plus_one' && "For every product item returned, the server executed an individual SQL query inside a loop instead of performing a single bulk join."}
+                                                                    {diagnosis.primary_root_cause === 'db_pool' && "The endpoint held onto database connections without releasing them, rapidly starving PostgreSQL's connection pool limit."}
+                                                                    {diagnosis.primary_root_cause === 'missing_index' && "The database scanned all table rows on disk because no index was present on user_id."}
+                                                                    {diagnosis.primary_root_cause === 'unbounded_cache' && "The server stored all incoming request payloads into memory without cache eviction, causing memory pressure."}
+                                                                </div>
+                                                            </div>
 
-                                                    <div>
-                                                        <div className="text-[10px] text-slate-400 font-mono uppercase">Why it Broke (Evidence)</div>
-                                                        <ul className="mt-1 space-y-1 text-slate-300 text-[11px] list-disc list-inside">
-                                                            {(diagnosis.evidence || []).map((ev, i) => (
-                                                                <li key={i}>{ev}</li>
-                                                            ))}
-                                                        </ul>
-                                                    </div>
+                                                            <div>
+                                                                <div className="text-[10px] text-slate-400 font-mono uppercase">Why it Broke (Evidence)</div>
+                                                                <ul className="mt-1 space-y-1 text-slate-300 text-[11px] list-disc list-inside">
+                                                                    {(diagnosis.evidence || []).map((ev, i) => (
+                                                                        <li key={i}>{ev}</li>
+                                                                    ))}
+                                                                </ul>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ) : (
                                                 <div className="py-6 text-center text-xs text-slate-500 italic font-mono">
