@@ -55,10 +55,15 @@ services:
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
+    command:
+      - '--docker_only=true'
+      - '--housekeeping_interval=10s'
+      - '--disable_metrics=disk,tcp,udp,percpu,sched,process'
     ports:
       - "8085:8080"
     networks:
       - loadmind-network
+
 
   locust:
     image: locustio/locust:2.15.1
