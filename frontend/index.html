@@ -120,6 +120,7 @@
             const [runState, setRunState] = useState("IDLE");
             const [testTimer, setTestTimer] = useState("00:00");
             const [activeNav, setActiveNav] = useState("dashboard");
+            const [chartMode, setChartMode] = useState("grafana");
             const [grafanaRefreshKey, setGrafanaRefreshKey] = useState(Date.now());
 
             // Real Data Telemetry State
@@ -810,28 +811,160 @@
                                                     <span className={`w-1.5 h-1.5 rounded-full ${runState === 'RUNNING' ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}`}></span>
                                                 </div>
                                                 
-                                                <div className="flex items-center space-x-3 text-xs font-mono text-slate-400">
+                                            <div className="flex items-center space-x-3 text-xs font-mono text-slate-400">
+                                                    <div className="flex items-center space-x-1 bg-white/[0.04] p-0.5 rounded border border-white/[0.06] text-[10px]">
+                                                        <button 
+                                                            onClick={() => setChartMode("grafana")}
+                                                            className={`px-2 py-0.5 rounded transition ${chartMode === "grafana" ? "bg-white/10 text-white font-semibold" : "text-slate-400 hover:text-slate-200"}`}
+                                                        >
+                                                            Grafana Panel
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => setChartMode("live_stream")}
+                                                            className={`px-2 py-0.5 rounded transition ${chartMode === "live_stream" ? "bg-white/10 text-white font-semibold" : "text-slate-400 hover:text-slate-200"}`}
+                                                        >
+                                                            Live Curves (P95 + Users)
+                                                        </button>
+                                                    </div>
                                                     <a 
                                                         href="http://localhost:3000/d/loadmind-observability/loadmind-performance-stress-observability?orgId=1&refresh=1s&kiosk"
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         className="text-[11px] text-orange-400/90 hover:text-orange-300 underline flex items-center space-x-1"
                                                     >
-                                                        <span>Open in Grafana ↗</span>
+                                                        <span>Grafana ↗</span>
                                                     </a>
-                                                    <span className="border-l border-white/10 pl-3">Active: <strong className="text-white">{latestMetric ? `${latestMetric.users} users` : (runState === 'RUNNING' ? `${concurrencyInput} users` : '0')}</strong></span>
+                                                    <span className="border-l border-white/10 pl-3">Active: <strong className="text-purple-400 font-bold">{latestMetric ? `${latestMetric.users} users` : (runState === 'RUNNING' ? `${concurrencyInput} users` : '0')}</strong></span>
                                                     <span>Stage: <strong className="text-slate-300">{latestMetric?.current_stage ? `${latestMetric.current_stage}/${latestMetric.total_stages}` : (runState === 'RUNNING' ? '1/4' : 'Idle')}</strong></span>
                                                 </div>
                                             </div>
 
-                                            {/* Embedded Grafana Observability Dashboard Panel */}
-                                            <div className="h-80 w-full bg-[#08090d] rounded border border-white/[0.04] overflow-hidden relative">
-                                                <iframe
-                                                    src={`http://localhost:3000/d-solo/loadmind-observability/loadmind-performance-stress-observability?orgId=1&panelId=1&refresh=1s&theme=dark&from=now-5m&to=now&kiosk&t=${grafanaRefreshKey}`}
-                                                    className="w-full h-full border-0"
-                                                    title="Grafana Response Latency Panel"
-                                                ></iframe>
-                                            </div>
+                                            {/* Primary Chart View: Live Smooth Dual-Axis Quantiles + Concurrency Curve OR Grafana Panel */}
+                                            {chartMode === "live_stream" ? (
+                                                <div className="h-80 w-full bg-[#08090d] rounded border border-white/[0.04] p-4 flex flex-col justify-between relative font-mono">
+                                                    {/* Legend and Realtime Axis Info */}
+                                                    <div className="flex items-center justify-between text-[11px] pb-2 border-b border-white/[0.04]">
+                                                        <div className="flex items-center space-x-4">
+                                                            <div className="flex items-center space-x-1.5">
+                                                                <span className="w-2.5 h-0.5 bg-red-400 rounded-full inline-block"></span>
+                                                                <span className="text-slate-300">P95 Latency ({latestMetric?.p95_ms || 0} ms)</span>
+                                                            </div>
+                                                            <div className="flex items-center space-x-1.5">
+                                                                <span className="w-2.5 h-0.5 bg-sky-400 rounded-full inline-block"></span>
+                                                                <span className="text-slate-300">P50 Latency ({latestMetric?.p50_ms || 0} ms)</span>
+                                                            </div>
+                                                            <div className="flex items-center space-x-1.5">
+                                                                <span className="w-2.5 h-0.5 bg-purple-400 rounded-full inline-block border-b border-dashed border-purple-400"></span>
+                                                                <span className="text-purple-300 font-bold">Active Users ({latestMetric?.users || 0} users)</span>
+                                                            </div>
+                                                            <div className="flex items-center space-x-1.5">
+                                                                <span className="w-2.5 h-0.5 bg-red-500/60 border-b border-dotted border-red-500 inline-block"></span>
+                                                                <span className="text-red-400/70 text-[10px]">Threshold (1000ms)</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-500">
+                                                            Left: Latency (ms) | Right: Concurrency (Users)
+                                                        </div>
+                                                    </div>
+
+                                                    {/* SVG Smooth Multi-Curve Canvas */}
+                                                    <div className="relative flex-1 w-full my-2">
+                                                        <svg className="w-full h-full overflow-visible" viewBox="0 0 700 180" preserveAspectRatio="none">
+                                                            <defs>
+                                                                <linearGradient id="p95Glow" x1="0" y1="0" x2="0" y2="1">
+                                                                    <stop offset="0%" stopColor="#f87171" stopOpacity="0.25" />
+                                                                    <stop offset="100%" stopColor="#f87171" stopOpacity="0.0" />
+                                                                </linearGradient>
+                                                                <linearGradient id="usersGlow" x1="0" y1="0" x2="0" y2="1">
+                                                                    <stop offset="0%" stopColor="#c084fc" stopOpacity="0.2" />
+                                                                    <stop offset="100%" stopColor="#c084fc" stopOpacity="0.0" />
+                                                                </linearGradient>
+                                                            </defs>
+
+                                                            {/* Grid Lines */}
+                                                            <line x1="0" y1="36" x2="700" y2="36" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+                                                            <line x1="0" y1="90" x2="700" y2="90" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+                                                            <line x1="0" y1="144" x2="700" y2="144" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+
+                                                            {/* Breaking Point Threshold Line at 1000ms */}
+                                                            {(() => {
+                                                                const maxLat = Math.max(1200, ...(metrics.map(m => Math.max(m.p95_ms || 0, m.p99_ms || 0))));
+                                                                const threshY = 170 - (1000 / maxLat) * 150;
+                                                                return (
+                                                                    <g>
+                                                                        <line x1="0" y1={threshY} x2="700" y2={threshY} stroke="#ef4444" strokeWidth="1" strokeDasharray="4 4" strokeOpacity="0.6" />
+                                                                        <text x="690" y={threshY - 4} fill="#ef4444" fontSize="9" textAnchor="end" opacity="0.8">1000ms Threshold</text>
+                                                                    </g>
+                                                                );
+                                                            })()}
+
+                                                            {/* Render Curves */}
+                                                            {metrics.length > 1 && (() => {
+                                                                const pts = metrics;
+                                                                const maxLat = Math.max(1200, ...(pts.map(m => Math.max(m.p95_ms || 0, m.p99_ms || 0))));
+                                                                const maxUsersVal = Math.max(Number(concurrencyInput) || 15, ...(pts.map(m => m.users || 1)));
+
+                                                                const getX = (idx) => (idx / (pts.length - 1)) * 690 + 5;
+                                                                const getYLat = (val) => 170 - (Math.min(maxLat, val || 0) / maxLat) * 150;
+                                                                const getYUsers = (val) => 170 - (Math.min(maxUsersVal, val || 0) / maxUsersVal) * 150;
+
+                                                                // Path Strings
+                                                                const p95Path = pts.map((m, i) => `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${getYLat(m.p95_ms).toFixed(1)}`).join(' ');
+                                                                const p50Path = pts.map((m, i) => `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${getYLat(m.p50_ms).toFixed(1)}`).join(' ');
+                                                                const usersPath = pts.map((m, i) => `${i === 0 ? 'M' : 'L'} ${getX(i).toFixed(1)} ${getYUsers(m.users).toFixed(1)}`).join(' ');
+
+                                                                const p95Area = `${p95Path} L ${getX(pts.length - 1)} 170 L ${getX(0)} 170 Z`;
+                                                                const usersArea = `${usersPath} L ${getX(pts.length - 1)} 170 L ${getX(0)} 170 Z`;
+
+                                                                return (
+                                                                    <g>
+                                                                        {/* User Concurrency Area & Line */}
+                                                                        <path d={usersArea} fill="url(#usersGlow)" />
+                                                                        <path d={usersPath} fill="none" stroke="#c084fc" strokeWidth="2.5" strokeDasharray="5 3" />
+
+                                                                        {/* P95 Area & Line */}
+                                                                        <path d={p95Area} fill="url(#p95Glow)" />
+                                                                        <path d={p95Path} fill="none" stroke="#f87171" strokeWidth="2.5" />
+
+                                                                        {/* P50 Line */}
+                                                                        <path d={p50Path} fill="none" stroke="#38bdf8" strokeWidth="1.8" />
+
+                                                                        {/* Data Points */}
+                                                                        {pts.map((m, i) => (
+                                                                            <g key={i}>
+                                                                                <circle cx={getX(i)} cy={getYUsers(m.users)} r="3" fill="#c084fc" />
+                                                                                <circle cx={getX(i)} cy={getYLat(m.p95_ms)} r="3.5" fill={m.p95_ms > 1000 ? "#ef4444" : "#f87171"} />
+                                                                            </g>
+                                                                        ))}
+                                                                    </g>
+                                                                );
+                                                            })()}
+
+                                                            {metrics.length <= 1 && (
+                                                                <text x="350" y="95" fill="#64748b" fontSize="12" textAnchor="middle">
+                                                                    {runState === 'RUNNING' ? 'Sampling realtime latency & concurrency stream...' : 'Waiting for stress test execution...'}
+                                                                </text>
+                                                            )}
+                                                        </svg>
+                                                    </div>
+
+                                                    {/* Real-Time Dual-Axis Time Ticks */}
+                                                    <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-white/[0.04]">
+                                                        <span>{metrics.length > 0 ? metrics[0].timestamp : '00:00:00'}</span>
+                                                        <span>Real-Time Concurrency Ramp Stream (Live Telemetry Engine)</span>
+                                                        <span>{metrics.length > 0 ? metrics[metrics.length - 1].timestamp : 'Current'}</span>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                /* Embedded Grafana Observability Dashboard Panel */
+                                                <div className="h-80 w-full bg-[#08090d] rounded border border-white/[0.04] overflow-hidden relative">
+                                                    <iframe
+                                                        src={`http://localhost:3000/d-solo/loadmind-observability/loadmind-performance-stress-observability?orgId=1&panelId=1&refresh=1s&theme=dark&from=now-5m&to=now&kiosk&t=${grafanaRefreshKey}`}
+                                                        className="w-full h-full border-0"
+                                                        title="Grafana Response Latency Panel"
+                                                    ></iframe>
+                                                </div>
+                                            )}
 
                                             {/* Step Ramp Progression Stepper */}
                                             <div className="pt-2 border-t border-white/[0.04]">

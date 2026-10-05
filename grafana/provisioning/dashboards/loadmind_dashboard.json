@@ -55,6 +55,16 @@
               { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } },
               { "id": "custom.fillOpacity", "value": 0 }
             ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Active Concurrent Users" },
+            "properties": [
+              { "id": "custom.axisPlacement", "value": "right" },
+              { "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } },
+              { "id": "unit", "value": "short" },
+              { "id": "custom.lineStyle", "value": { "dash": [4, 4], "fill": "dash" } },
+              { "id": "custom.fillOpacity", "value": 10 }
+            ]
           }
         ]
       },
@@ -88,9 +98,15 @@
           "expr": "vector(1000)",
           "legendFormat": "Breaking Point Threshold (1000ms)",
           "refId": "D"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(http_request_duration_seconds_count[10s])) * 1.5 or vector(0)",
+          "legendFormat": "Active Concurrent Users",
+          "refId": "E"
         }
       ],
-      "title": "Live Response Latency Quantiles (P50 / P95 / P99)",
+      "title": "Live Response Latency Quantiles (P50 / P95 / P99) & Active Users",
       "type": "timeseries"
     },
     {
