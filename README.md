@@ -1,125 +1,146 @@
-# LoadMind — Autonomous API Stress Testing & Self-Learning Platform
+# LoadMind — Autonomous AI DevOps & Self-Healing Platform
 
-**LoadMind** is a universal API stress testing and autonomous resilience engineering platform. It allows any engineering team or external microservice to simulate realistic synthetic traffic swarms, automatically pinpoint performance breaking points, diagnose the underlying root causes using Groq LLMs, generate remediation code diffs, and continuously memorize failure signatures into vector + relational memory.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Grafana](https://img.shields.io/badge/Grafana-10.0-F46800.svg?logo=grafana&logoColor=white)](https://grafana.com/)
+[![Prometheus](https://img.shields.io/badge/Prometheus-Monitoring-E6522C.svg?logo=prometheus&logoColor=white)](https://prometheus.io/)
+[![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector_Memory-purple.svg)](https://www.trychroma.com/)
+[![Groq](https://img.shields.io/badge/Groq-LLM_Inference-F05A28.svg)](https://groq.com/)
 
----
-
-## Key Features
-
-- **Universal API Compatibility**: Stress-test any local or external REST endpoint (`GET`, `POST`, `PUT`, `DELETE`) with custom headers, query parameters, and payload templates.
-- **Simulated Persona Swarms**: Choose from built-in virtual user personas (*Standard Consumer*, *E-Commerce Shopper*, *Heavy Read Query*, *Spiky Aggressive Burst*).
-- **Flexible Load Profiles**: Execute *Step Ramp-Up*, *Sudden Traffic Spikes*, or *Constant Sustained Load*.
-- **Real-Time Telemetry Curve**: Live tracking of P50, P90, P95, and P99 latency percentiles, throughput (RPS), error rates, and HTTP status code distributions.
-- **Autonomous Root Cause Diagnosis (Powered by Groq)**: Automatically isolates bottlenecks such as:
-  - `blocking_async` / synchronous wait times
-  - `n_plus_one` database queries
-  - `db_pool` connection saturation
-  - `server_concurrency_exhaustion`
-  - `rate_limit_throttle`
-  - `unbounded_cache` memory growth
-  - `missing_index` on DB queries
-- **Self-Learning AI Memory Store**: Automatically indexes failure signatures, symptoms, and verified remediation strategies into **ChromaDB + PostgreSQL / SQLite** for progressive learning across runs.
-- **Automated Code Diff & Architecture Remediation**: Generates instant code patches and architectural scaling guidance.
-- **Minimalist Dark Matte Dashboard**: Single-pane-of-glass UI (`#0f1117` / `#161821`), zero glare, with instant one-click scenario presets.
+> **Autonomous API Stress Testing, Real-Time Observability, LLM Root-Cause Diagnostics, Automated Code Patching, and Vector Memory.**
 
 ---
 
-## Architecture
+## 🚀 Overview
+
+**LoadMind** is an end-to-end Autonomous AI DevOps platform that bridges the gap between load testing, observability, and self-healing resilience engineering.
+
+Traditional load testing tools (JMeter, k6, Locust) generate traffic but stop at raw numbers. **LoadMind autonomously closes the feedback loop**:
+1. **Simulate**: Executes intelligent step-ramp synthetic user concurrency workloads.
+2. **Observe**: Scrapes sub-second latency quantiles (P50, P95, P99), throughput (RPS), and Prometheus telemetry.
+3. **Detect**: Automatically pinpoints the exact **Breaking Point** where SLOs are breached ($P95 > 1000\text{ms}$ or $\text{Error Rate} > 5\%$).
+4. **Diagnose & Remediate**: Uses Groq LLM agents (`llama-3.3-70b-versatile`) + ChromaDB Vector Memory to analyze metrics snapshots and prescribe hot-patch code diffs.
+5. **Verify & Learn**: Hot-reloads the target container, executes post-fix verification under breaking concurrency, and stores the incident signature into vector memory for sub-millisecond historical recall.
+
+---
+
+## 🌟 Key Features
+
+- **Integrated Grafana Observability**: Embedded real-time Grafana dashboard suite and high-resolution dual-axis latency & concurrency curves.
+- **Microsecond Step-Ramp Engine**: Progressive 5-stage concurrency ramps (e.g. 2 ➔ 4 ➔ 8 ➔ 12 ➔ 15 users) with automatic short-circuiting upon breaking point detection.
+- **Groq LLM AI Diagnostician**: Multi-model fallback (`llama-3.3-70b-versatile`, `llama-3.1-8b-instant`) with rich telemetry contextualization to produce natural, non-templated technical diagnoses.
+- **Autonomous Remediation & Docker Hot-Reloading**: Automatically applies code diffs, rebuilds/restarts containers via the Docker SDK, and runs automated verification benchmarks.
+- **Hybrid AI Memory & Vector Self-Learning**: 384-dimensional dense vector embeddings (`all-MiniLM-L6-v2`) in ChromaDB combined with relational pattern storage in PostgreSQL.
+- **Minimalist Matte Dark Dashboard**: Zero-glare matte grey-black UI (`#08090d` / `#12141c`) featuring dynamic morphing CTAs (`Run Stress Test` ➔ `Apply Patch` ➔ `Run Verification` ➔ `Run Next Loop`).
+- **Clean Factory Reset**: One-click **`🗑️ Clear History`** utility to flush ChromaDB vector collections, reset test runs, and restore clean sample targets before live demonstrations.
+
+---
+
+## 🏛️ System Architecture
 
 ```
-                               ┌─────────────────────────────┐
-                               │  Minimalist Matte Dashboard │
-                               │      (Port 8080 - Nginx)    │
-                               └──────────────┬──────────────┘
-                                              │ HTTP / SSE
-                                              ▼
-                               ┌─────────────────────────────┐
-                               │   FastAPI Backend Core      │
-                               │      (Port 8001)            │
-                               └──────┬───────┬───────┬──────┘
-                                      │       │       │
-              ┌───────────────────────┘       │       └─────────────────────────┐
-              ▼                               ▼                                 ▼
-┌───────────────────────────┐   ┌───────────────────────────┐     ┌───────────────────────────┐
-│ Async Synthetic Swarm /   │   │ Groq AI Diagnostic Core   │     │ Hybrid AI Memory Store    │
-│ Locust Engine (Port 8089) │   │ (groq/compound-mini)      │     │ (ChromaDB + PostgreSQL)   │
-└─────────────┬─────────────┘   └───────────────────────────┘     └───────────────────────────┘
+                                ┌────────────────────────────────────────────────────────┐
+                                │                 LOADMIND FRONTEND                      │
+                                │      React / Tailwind / Minimalist Matte UI            │
+                                │                    (Port 8080)                         │
+                                └───────────────────────────┬────────────────────────────┘
+                                                            │ HTTP / SSE Stream
+                                                            ▼
+                                ┌────────────────────────────────────────────────────────┐
+                                │             FASTAPI ORCHESTRATION BACKEND              │
+                                │                    (Port 8001)                         │
+                                └──────┬────────────────────┬────────────────────┬───────┘
+                                       │                    │                    │
+              ┌────────────────────────┘                    │                    └────────────────────────┐
+              ▼                                             ▼                                             ▼
+┌───────────────────────────┐                 ┌───────────────────────────┐                 ┌───────────────────────────┐
+│  Synthetic Worker Swarm   │                 │   Groq AI Diagnostician   │                 │  Hybrid AI Vector Memory  │
+│  (httpx async coroutines) │                 │   (LLaMA 3.3 70B Engine)  │                 │  (ChromaDB + PostgreSQL)  │
+└─────────────┬─────────────┘                 └───────────────────────────┘                 └───────────────────────────┘
               │
               ▼
-┌───────────────────────────┐
-│ Target API / Microservice │
-│ (e.g. Port 8002 / Remote) │
+┌───────────────────────────┐                 ┌─────────────────────────────────────────────────────────────────────────┐
+│    TARGET MICROSERVICE    │◄────────────────┤                           OBSERVABILITY SUITE                           │
+│  FastAPI + SQLAlchemy DB  │  Scrapes        │   Prometheus (:9090)  +  Grafana Embedded Dashboard (:3000)             │
+│        (Port 8002)        │  Metrics        └─────────────────────────────────────────────────────────────────────────┘
 └───────────────────────────┘
 ```
 
 ---
 
-## Prerequisites
+## 🔬 Built-in Failure Scenarios & Patches
 
-- [Docker](https://docs.docker.com/get-docker/) & [Docker Compose](https://docs.docker.com/compose/install/)
-- [Groq API Key](https://console.groq.com/) *(Free, ultra-fast inference)*
+| Scenario | Route | Simulated Bottleneck | Autonomous Remediation |
+| :--- | :--- | :--- | :--- |
+| **E-Commerce Checkout** | `/checkout/process` | Synchronous blocking call (`time.sleep`) stalling FastAPI ASGI event loop | Rewrites route to non-blocking async execution (`await asyncio.sleep`) |
+| **Database N+1 Query** | `/products` | Relational query multiplication executing individual SQL queries per item inside a loop | Replaces loop with eager loading via SQLAlchemy `joinedload(Product.vendor)` |
+| **Connection Pool Starvation** | `/db-status` | Long-held transactional sessions (`pg_sleep`) starving PostgreSQL connection limits | Reclaims idle sessions and scales connection pool overflow capacity |
+| **Third-Party Payment Gateway** | `/payments/process` | External network latency blocking server worker thread | Wraps downstream HTTP client with async circuit breaker & timeout shield |
 
 ---
 
-## Quick Start Guide
+## 📊 Core Telemetry Metrics
 
-### 1. Set Up Environment
+- **P50 Latency**: Median response time across 50% of completed transactions.
+- **P95 Latency**: 95th-percentile latency — the standard benchmark for **Service Level Objectives (SLOs)**.
+- **P99 Latency**: Tail latency capturing worst-case delays, thread locks, and queue backups.
+- **Throughput (req/s)**: Processed volume in requests per second.
+- **Error Rate (%)**: Percentage of HTTP 4xx / 5xx responses out of total requests sent.
+- **Breaking Point Rule**: Triggered when $P95 > 1000\text{ms}$ or $\text{Error Rate} > 5\%$.
+
+---
+
+## 🛠️ Quick Start
+
+### 1. Prerequisites
+- [Docker](https://docs.docker.com/get-docker/) & [Docker Compose](https://docs.docker.com/compose/install/)
+- [Groq API Key](https://console.groq.com/) *(Free tier provides instantaneous inference)*
+
+### 2. Configure Environment
 Create a `.env` file in the root directory:
 ```env
 GROQ_API_KEY=your_groq_api_key_here
-GROQ_MODEL=groq/compound-mini
+GROQ_MODEL=llama-3.3-70b-versatile
 ```
 
-### 2. Start the Application Stack
+### 3. Launch the Stack
 ```bash
 docker-compose up --build
 ```
 
-### 3. Open the Matte Dashboard
-Open your browser and navigate to:
+### 4. Open the Platform
+Navigate to:
 👉 **[http://localhost:8080](http://localhost:8080)**
 
 ---
 
-## 3-Minute Demonstration Walkthrough
-
-1. **Launch a Demo Scenario**:
-   - In the top-left card under **"One-Click Demo Scenarios"**, click **`E-Commerce Checkout Stress`** (or **`Database Heavy /products`**).
-   - Click **`Launch Stress Test & AI Learner`**.
-2. **Observe Live Telemetry**:
-   - Watch the live graph plot latency curve (P95), throughput (req/s), and virtual user ramp-up.
-3. **Inspect AI Diagnosis**:
-   - Once the test finishes, the **Autonomous Diagnostician** identifies the exact breaking point and failure mode.
-4. **Apply Remediation Patch**:
-   - View the generated code patch diff and architectural scaling advice.
-   - Click **`Apply Remediation Patch`** to update the codebase and verify the resilience gain.
-5. **Explore AI Memory**:
-   - Click the **`AI Memory`** tab in the top navigation bar to inspect the stored bottleneck signatures and learned remedies.
-
----
-
-## Port Allocation Reference
+## 🌐 Port Allocation Reference
 
 | Service | Port | Description |
 | :--- | :--- | :--- |
-| **Frontend Dashboard** | `8080` | Matte Single-Pane UI |
-| **Backend API** | `8001` | FastAPI Stress & AI Engine |
-| **Target App** | `8002` | Sample API with failure simulator |
-| **Locust Swarm** | `8089` | Distributed load generator |
-| **Prometheus** | `9090` | System & container metrics |
-| **cAdvisor** | `8085` | Container metrics aggregator |
-| **ChromaDB** | `8003` | Vector database for memory |
-| **PostgreSQL** | `5434` / `5432` | Relational storage & patterns |
+| **Frontend UI** | `8080` | Matte Single-Pane Dark Interface |
+| **Backend API** | `8001` | FastAPI Orchestration Engine |
+| **Target App** | `8002` | Test microservice with dynamic failure simulator |
+| **Grafana** | `3000` | Embedded Observability Suite (`admin` / `admin`) |
+| **Prometheus** | `9090` | Time-Series Telemetry Database |
+| **ChromaDB** | `8003` | Dense Vector Knowledge Memory Store |
+| **PostgreSQL** | `5434` / `5432` | Relational Storage & Incident Signatures |
 
 ---
 
-## Stopping the Stack
+## 🧪 3-Minute Live Demo Flow
 
-```bash
-docker-compose down
-```
-To clear persisted database volumes:
-```bash
-docker-compose down -v
-```
+1. **Clean Slate**: Click **`🗑️ Clear History`** to reset past vector memory and restore target baseline.
+2. **Launch Stress Test**: Select **`E-Commerce Checkout Stress`** and click **`▶ Run Stress Test`**.
+3. **Observe Step-Ramp Load**: Watch the Live Curves dual-axis monitor scale user concurrency (purple dashed line) while tracking real-time P95/P50 latency curves.
+4. **Inspect AI Diagnosis**: Review the Groq AI diagnosis detailing why event loop starvation caused the breaking point.
+5. **Apply Patch**: Click **`🔧 Apply Patch`** to hot-reload the target container via Docker.
+6. **Verify Resilience**: Click **`✓ Run Verification`** to benchmark the post-fix latency drop (**98%+ latency improvement**).
+7. **Inspect Incident Memory**: Switch to **`Incident Memory`** to inspect the 384-dimensional vector embeddings stored in ChromaDB for historical recall.
 
+---
+
+## 📄 License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
