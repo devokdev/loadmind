@@ -209,7 +209,10 @@ async def run_universal_stress_test(experiment_id: int, req_data: schemas.Experi
                     "error_rate": snapshot.get("error_rate", 0.0),
                     "cpu_percent": snapshot.get("cpu_percent", 0.0),
                     "memory_mb": snapshot.get("memory_mb", 0.0),
-                    "status_codes": {"200": int(rps * 0.9), "500": int(rps * snapshot.get("error_rate", 0.0))}
+                    "status_codes": {"200": int(rps * 0.9), "500": int(rps * snapshot.get("error_rate", 0.0))},
+                    "stages": stages,
+                    "current_stage": stages.index(current_users) + 1,
+                    "total_stages": len(stages)
                 }
                 active_metrics_stream[experiment_id].append(metric_entry)
 
@@ -305,6 +308,8 @@ async def run_universal_stress_test(experiment_id: int, req_data: schemas.Experi
                         breaking_point_detected = True
                         breaking_users = current_users
                         final_metrics_snapshot = metric_entry
+                        # Short-circuit step duration immediately
+                        break
                 else:
                     # In-flight / slow target execution: carry forward active metrics with realistic active load
                     active_rps = max(1.0, round(current_users * 0.9, 1))
@@ -329,11 +334,14 @@ async def run_universal_stress_test(experiment_id: int, req_data: schemas.Experi
             stop_signal.set()
             await asyncio.gather(*tasks, return_exceptions=True)
 
+        # If breaking point was detected in this stage, short-circuit test run and DO NOT ramp to higher stages!
+        if breaking_point_detected:
+            break
+
     # Stop Locust if running
     if use_locust:
         locust_service.stop_load()
 
-    # Finalize experiment record in database
     from database import SessionLocal
     db = SessionLocal()
     try:
@@ -637,4 +645,3 @@ def health():
         "timestamp": datetime.utcnow().isoformat(),
         "engine": "LoadMind Autonomous Stress & Learning Core"
     }
-
