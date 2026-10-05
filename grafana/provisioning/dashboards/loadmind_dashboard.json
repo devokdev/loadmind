@@ -33,29 +33,22 @@
             "drawStyle": "line",
             "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "fillOpacity": 15,
+            "fillOpacity": 18,
             "gradientMode": "opacity",
-            "showPoints": "auto"
+            "showPoints": "always",
+            "pointSize": 5
           },
           "unit": "ms",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
-              { "color": "yellow", "value": 500 },
+              { "color": "yellow", "value": 300 },
               { "color": "red", "value": 1000 }
             ]
           }
         },
         "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "Breaking Point Threshold (1000ms)" },
-            "properties": [
-              { "id": "custom.lineStyle", "value": { "dash": [5, 5], "fill": "dash" } },
-              { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } },
-              { "id": "custom.fillOpacity", "value": 0 }
-            ]
-          },
           {
             "matcher": { "id": "byName", "options": "Active Concurrent Users" },
             "properties": [
@@ -63,7 +56,28 @@
               { "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } },
               { "id": "unit", "value": "short" },
               { "id": "custom.lineStyle", "value": { "dash": [4, 4], "fill": "dash" } },
-              { "id": "custom.fillOpacity", "value": 10 }
+              { "id": "custom.fillOpacity", "value": 12 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "P95 Latency" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } },
+              { "id": "custom.lineWidth", "value": 2.5 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "P50 Latency" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } },
+              { "id": "custom.lineWidth", "value": 2 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "P99 Latency" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } },
+              { "id": "custom.lineWidth", "value": 2 }
             ]
           }
         ]
@@ -77,31 +91,25 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_highr_seconds_bucket[10s])) by (le)) * 1000 or histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[10s])) by (le)) * 1000",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_highr_seconds_bucket[3s])) by (le)) * 1000 or histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[3s])) by (le)) * 1000",
           "legendFormat": "P95 Latency",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_highr_seconds_bucket[10s])) by (le)) * 1000 or histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[10s])) by (le)) * 1000",
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_highr_seconds_bucket[3s])) by (le)) * 1000 or histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[3s])) by (le)) * 1000",
           "legendFormat": "P50 Latency",
           "refId": "B"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_highr_seconds_bucket[10s])) by (le)) * 1000 or histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[10s])) by (le)) * 1000",
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_highr_seconds_bucket[3s])) by (le)) * 1000 or histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[3s])) by (le)) * 1000",
           "legendFormat": "P99 Latency",
           "refId": "C"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "vector(1000)",
-          "legendFormat": "Breaking Point Threshold (1000ms)",
-          "refId": "D"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(http_request_duration_seconds_count[10s])) * 1.5 or vector(0)",
+          "expr": "sum(rate(http_request_duration_seconds_count[3s])) * 1.5",
           "legendFormat": "Active Concurrent Users",
           "refId": "E"
         }
