@@ -370,7 +370,7 @@ async def run_universal_stress_test(experiment_id: int, req_data: schemas.Experi
             if breaking_point_detected:
                 exp.breaking_point_users = breaking_users
             else:
-                exp.breaking_point_users = stages[-1]
+                exp.breaking_point_users = None
 
             db.commit()
 

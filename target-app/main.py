@@ -158,12 +158,12 @@ def get_orders(user_id: int = None, db: Session = Depends(get_db)):
 @app.get("/checkout/process")
 async def checkout_process():
     if CURRENT_FAILURE_MODE == "blocking_async":
-        # Realistic synchronous computation/sleep that allows 2-4 users but saturates event loop at higher concurrency
-        time.sleep(0.18)
+        # Realistic synchronous blocking call: 2-6 users pass (<1000ms), 12-20+ users queue up and exceed 1000ms threshold
+        time.sleep(0.40)
         return {"status": "processed", "type": "blocking"}
     else:
         # Fast non-blocking async execution
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(0.005)
         return {"status": "processed", "type": "async"}
 
 # Route 5: Database Connection Pool Exhaustion (Route holding DB connections)
