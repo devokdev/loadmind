@@ -39,7 +39,9 @@ class Remediator:
         arch_advice = advice_map.get(root_cause, "Implement structured caching, asynchronous IO, and connection pool sizing.")
 
         # If local target-app is present, prepare patch diff
-        if root_cause in ["blocking_async", "high_network_latency"]:
+        if root_cause == "high_network_latency":
+            patch_diff = """--- a/main.py\n+++ b/main.py\n@@ -172,3 +172,3 @@\n-    res = requests.get("https://httpbin.org/delay/1") # Unshielded sync call\n+    # Circuit Breaker + Non-blocking Async Shield\n+    async with httpx.AsyncClient(timeout=0.5) as client:\n+        res = await client.get("https://httpbin.org/delay/1")"""
+        elif root_cause == "blocking_async":
             patch_diff = """--- a/main.py\n+++ b/main.py\n@@ -134,2 +134,2 @@\n-    time.sleep(1.0) # Blocking sync call\n+    await asyncio.sleep(0.01) # Non-blocking async I/O"""
         elif root_cause == "db_pool":
 

@@ -11,8 +11,6 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Google Fonts: Inter & JetBrains Mono -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -93,17 +91,17 @@
                 description: "Holds database connection with pg_sleep(2.0), exhausting PostgreSQL pool limit."
             },
             {
-                id: "public_httpbin",
-                name: "Public Internet Delayed API",
-                endpoint: "/delay/1",
-                target: "https://httpbin.org/delay/1",
+                id: "public_gateway",
+                name: "Third-Party Payment Gateway",
+                endpoint: "/payments/process",
+                target: "http://localhost:8002/payments/process",
                 method: "GET",
                 persona: "external_service",
                 load_profile: "Step Ramp",
-                concurrency: 8,
+                concurrency: 12,
                 duration: 10,
                 failure_mode: "high_network_latency",
-                description: "Real public internet server with artificial 1-second transit latency."
+                description: "Calls live public httpbin.org server with 1s network latency. Patch shields client with async circuit breaker."
             }
         ];
 
@@ -117,6 +115,7 @@
             const [runState, setRunState] = useState("IDLE");
             const [testTimer, setTestTimer] = useState("00:00");
             const [activeNav, setActiveNav] = useState("dashboard");
+            const [grafanaRefreshKey, setGrafanaRefreshKey] = useState(Date.now());
 
             // Real Data Telemetry State
             const [currentTest, setCurrentTest] = useState(null);
@@ -134,8 +133,6 @@
             const [patchStatusMsg, setPatchStatusMsg] = useState("");
             const [isVerifying, setIsVerifying] = useState(false);
 
-            const chartRef = useRef(null);
-            const chartInstance = useRef(null);
             const pollIntervalRef = useRef(null);
             const timerRef = useRef(null);
 
@@ -150,13 +147,8 @@
                 return () => {
                     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
                     if (timerRef.current) clearInterval(timerRef.current);
-                    if (chartInstance.current) chartInstance.current.destroy();
                 };
             }, []);
-
-            useEffect(() => {
-                renderObservabilityChart();
-            }, [metrics, currentTest]);
 
             const loadInitialSystemData = async () => {
                 try {
@@ -379,134 +371,6 @@
                 }
             };
 
-            const renderObservabilityChart = () => {
-                if (!chartRef.current) return;
-                const ctx = chartRef.current.getContext('2d');
-
-                if (chartInstance.current) {
-                    chartInstance.current.destroy();
-                }
-
-                const labels = metrics.length > 0 ? metrics.map(m => m.timestamp) : ['00:00:00'];
-                const p95Data = metrics.length > 0 ? metrics.map(m => m.p95_ms) : [0];
-                const p50Data = metrics.length > 0 ? metrics.map(m => m.p50_ms) : [0];
-                const rpsData = metrics.length > 0 ? metrics.map(m => m.rps) : [0];
-                const errorData = metrics.length > 0 ? metrics.map(m => m.error_rate * 100) : [0];
-
-                chartInstance.current = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: [
-                            {
-                                label: 'P95 Latency (ms)',
-                                data: p95Data,
-                                borderColor: '#38bdf8',
-                                backgroundColor: 'rgba(56, 189, 248, 0.08)',
-                                fill: true,
-                                borderWidth: 2,
-                                pointRadius: metrics.length > 0 ? 3 : 0,
-                                pointBackgroundColor: '#38bdf8',
-                                tension: 0.2,
-                                yAxisID: 'y'
-                            },
-                            {
-                                label: 'P50 Latency (ms)',
-                                data: p50Data,
-                                borderColor: '#94a3b8',
-                                backgroundColor: 'transparent',
-                                borderWidth: 1.5,
-                                pointRadius: 0,
-                                borderDash: [2, 2],
-                                tension: 0.2,
-                                yAxisID: 'y'
-                            },
-                            {
-                                label: 'Breaking Point Threshold (1000ms)',
-                                data: labels.map(() => 1000),
-                                borderColor: '#ef4444',
-                                backgroundColor: 'transparent',
-                                borderWidth: 1.5,
-                                borderDash: [6, 4],
-                                pointRadius: 0,
-                                tension: 0,
-                                yAxisID: 'y'
-                            },
-                            {
-                                label: 'Throughput (req/s)',
-                                data: rpsData,
-                                borderColor: '#818cf8',
-                                backgroundColor: 'transparent',
-                                borderWidth: 1.5,
-                                pointRadius: 0,
-                                tension: 0.2,
-                                yAxisID: 'y1'
-                            },
-                            {
-                                label: 'Error Rate (%)',
-                                data: errorData,
-                                borderColor: '#f87171',
-                                backgroundColor: 'transparent',
-                                borderWidth: 1.2,
-                                pointRadius: 0,
-                                tension: 0.2,
-                                yAxisID: 'y2'
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        interaction: { mode: 'index', intersect: false },
-                        plugins: {
-                            legend: {
-                                display: true,
-                                position: 'top',
-                                labels: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 10 }, boxWidth: 12 }
-                            },
-                            tooltip: {
-                                backgroundColor: '#0f172a',
-                                borderColor: 'rgba(255,255,255,0.1)',
-                                borderWidth: 1,
-                                titleColor: '#fff',
-                                bodyColor: '#cbd5e1',
-                                titleFont: { family: 'JetBrains Mono', size: 11 },
-                                bodyFont: { family: 'JetBrains Mono', size: 10 }
-                            }
-                        },
-                        scales: {
-                            x: {
-                                grid: { color: 'rgba(255, 255, 255, 0.04)' },
-                                ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 }, maxRotation: 0 }
-                            },
-                            y: {
-                                type: 'linear',
-                                position: 'left',
-                                title: { display: true, text: 'Latency (ms)', color: '#64748b', font: { size: 10 } },
-                                grid: { color: 'rgba(255, 255, 255, 0.04)' },
-                                ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
-                            },
-                            y1: {
-                                type: 'linear',
-                                position: 'right',
-                                title: { display: true, text: 'RPS', color: '#818cf8', font: { size: 10 } },
-                                grid: { drawOnChartArea: false },
-                                ticks: { color: '#818cf8', font: { family: 'JetBrains Mono', size: 9 } }
-                            },
-                            y2: {
-                                type: 'linear',
-                                position: 'right',
-                                title: { display: false },
-                                min: 0,
-                                max: 100,
-                                grid: { drawOnChartArea: false },
-                                display: false
-                            }
-                        }
-                    }
-                });
-            };
-
             const latestMetric = metrics.length > 0 ? metrics[metrics.length - 1] : null;
 
             // Compute actual status code distribution percentages
@@ -540,6 +404,19 @@
                                 >
                                     <span>⚡</span>
                                     <span>Stress Testing</span>
+                                </button>
+
+                                <button
+                                    onClick={() => setActiveNav("grafana")}
+                                    className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded text-xs font-medium transition ${
+                                        activeNav === 'grafana' ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30' : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
+                                    }`}
+                                >
+                                    <span>📊</span>
+                                    <span>Grafana Live Suite</span>
+                                    <span className="ml-auto text-[9px] font-mono bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded border border-orange-500/30 font-bold">
+                                        GRAFANA
+                                    </span>
                                 </button>
 
                                 <button
@@ -764,19 +641,34 @@
                                         <div className="devops-card p-4 space-y-3">
                                             <div className="flex items-center justify-between">
                                                 <div className="flex items-center space-x-3">
-                                                    <span className="text-xs font-bold text-white uppercase tracking-wide">Live Response Time & Throughput</span>
+                                                    <span className="text-xs font-bold text-white uppercase tracking-wide flex items-center space-x-2">
+                                                        <span className="text-orange-400 font-mono">📊 Grafana</span>
+                                                        <span>Live Response Time & Latency Quantiles</span>
+                                                    </span>
                                                     <span className={`w-2 h-2 rounded-full ${runState === 'RUNNING' ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}`}></span>
                                                 </div>
                                                 
-                                                <div className="flex items-center space-x-4 text-xs font-mono text-slate-400">
-                                                    <span>Active Concurrency: <strong className="text-white">{latestMetric ? `${latestMetric.users} users` : (runState === 'RUNNING' ? `${concurrencyInput} users` : '0')}</strong></span>
+                                                <div className="flex items-center space-x-3 text-xs font-mono text-slate-400">
+                                                    <a 
+                                                        href="http://localhost:3000/d/loadmind-observability/loadmind-performance-stress-observability?orgId=1&refresh=1s&kiosk"
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-[11px] text-orange-400 hover:text-orange-300 underline flex items-center space-x-1"
+                                                    >
+                                                        <span>Open in Grafana ↗</span>
+                                                    </a>
+                                                    <span className="border-l border-white/10 pl-3">Active: <strong className="text-white">{latestMetric ? `${latestMetric.users} users` : (runState === 'RUNNING' ? `${concurrencyInput} users` : '0')}</strong></span>
                                                     <span>Stage: <strong className="text-indigo-400">{latestMetric?.current_stage ? `${latestMetric.current_stage}/${latestMetric.total_stages}` : (runState === 'RUNNING' ? '1/4' : 'Idle')}</strong></span>
                                                 </div>
                                             </div>
 
-                                            {/* Observability Chart Canvas */}
-                                            <div className="h-72 w-full bg-[#080a0f] rounded border border-white/[0.05] p-2">
-                                                <canvas ref={chartRef}></canvas>
+                                            {/* Embedded Grafana Observability Dashboard Panel */}
+                                            <div className="h-80 w-full bg-[#080a0f] rounded border border-white/[0.08] overflow-hidden relative">
+                                                <iframe
+                                                    src={`http://localhost:3000/d-solo/loadmind-observability/loadmind-performance-stress-observability?orgId=1&panelId=1&refresh=1s&theme=dark&from=now-5m&to=now&kiosk&t=${grafanaRefreshKey}`}
+                                                    className="w-full h-full border-0"
+                                                    title="Grafana Response Latency Panel"
+                                                ></iframe>
                                             </div>
 
                                             {/* Real Load Profile Stage Stepper */}
@@ -1004,9 +896,15 @@
                                                 </span>
                                             </div>
 
-                                            {/* Patch Code Diff Box */}
+                                            {/* Patch Code Diff or Client-Side Advice Box */}
                                             <div className="bg-[#08090d] rounded p-2.5 font-mono text-xs text-slate-300 border border-white/[0.06] max-h-36 overflow-y-auto">
-                                                {remediation?.patch_diff ? (
+                                                {targetUrl && !targetUrl.includes("localhost:8002") && !targetUrl.includes("target-app") ? (
+                                                    <div className="space-y-1 text-[11px] leading-relaxed">
+                                                        <div className="text-amber-300 font-bold">🌐 Third-Party External Endpoint:</div>
+                                                        <div className="text-slate-300">Remote server is outside cluster control. Prescribing consumer-side resilience pattern:</div>
+                                                        <pre className="text-emerald-400 mt-1 text-[10px] whitespace-pre-wrap">{remediation?.architecture_advice || "1. Configure Circuit Breaker (PyBreaker / Resilience4j).\n2. Set HTTP client timeout: httpx.AsyncClient(timeout=2.0).\n3. Offload downstream calls to background worker queue (Celery)."}</pre>
+                                                    </div>
+                                                ) : remediation?.patch_diff ? (
                                                     <pre className="text-emerald-400 whitespace-pre-wrap text-[11px] leading-relaxed">{remediation.patch_diff}</pre>
                                                 ) : (
                                                     <div className="py-4 text-center text-slate-500 italic text-[11px]">
@@ -1023,29 +921,37 @@
 
                                             {/* Remediation Action Buttons */}
                                             <div className="flex items-center space-x-2 pt-1">
-                                                <button
-                                                    onClick={applyRemediationPatch}
-                                                    disabled={!remediation || remediation.is_applied || patchApplying}
-                                                    className={`flex-1 py-2 px-3 rounded text-xs font-bold font-mono transition ${
-                                                        remediation && !remediation.is_applied
-                                                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                                                            : 'bg-white/5 text-slate-600 cursor-not-allowed'
-                                                    }`}
-                                                >
-                                                    {patchApplying ? 'Applying...' : (remediation?.is_applied ? '✓ Patch Applied' : 'Apply Patch')}
-                                                </button>
+                                                {targetUrl && !targetUrl.includes("localhost:8002") && !targetUrl.includes("target-app") ? (
+                                                    <div className="w-full py-2 px-3 rounded text-center text-[10px] font-mono bg-white/5 text-amber-300 border border-amber-500/20">
+                                                        ℹ External Remote API — Container auto-patching disabled for third-party host
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            onClick={applyRemediationPatch}
+                                                            disabled={!remediation || remediation.is_applied || patchApplying}
+                                                            className={`flex-1 py-2 px-3 rounded text-xs font-bold font-mono transition ${
+                                                                remediation && !remediation.is_applied
+                                                                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                                                                    : 'bg-white/5 text-slate-600 cursor-not-allowed'
+                                                            }`}
+                                                        >
+                                                            {patchApplying ? 'Applying...' : (remediation?.is_applied ? '✓ Patch Applied' : 'Apply Patch')}
+                                                        </button>
 
-                                                <button
-                                                    onClick={runPostFixVerification}
-                                                    disabled={!remediation?.is_applied || isVerifying}
-                                                    className={`flex-1 py-2 px-3 rounded text-xs font-bold font-mono transition ${
-                                                        remediation?.is_applied && !isVerifying
-                                                            ? 'bg-indigo-600 hover:bg-indigo-500 text-white'
-                                                            : 'bg-white/5 text-slate-600 cursor-not-allowed'
-                                                    }`}
-                                                >
-                                                    {isVerifying ? 'Verifying...' : 'Run Verification'}
-                                                </button>
+                                                        <button
+                                                            onClick={runPostFixVerification}
+                                                            disabled={!remediation?.is_applied || isVerifying}
+                                                            className={`flex-1 py-2 px-3 rounded text-xs font-bold font-mono transition ${
+                                                                remediation?.is_applied && !isVerifying
+                                                                    ? 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                                                                    : 'bg-white/5 text-slate-600 cursor-not-allowed'
+                                                            }`}
+                                                        >
+                                                            {isVerifying ? 'Verifying...' : 'Run Verification'}
+                                                        </button>
+                                                    </>
+                                                )}
                                             </div>
 
                                             {/* REAL MEASURED BEFORE VS AFTER VERIFICATION COMPARISON */}
@@ -1130,6 +1036,53 @@
 
                                 </div>
 
+                            </div>
+                        ) : activeNav === "grafana" ? (
+                            /* FULL GRAFANA OBSERVABILITY SUITE VIEW */
+                            <div className="p-6 space-y-6 max-w-[1700px] w-full mx-auto">
+                                <div className="devops-card p-5 space-y-4">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/[0.08]">
+                                        <div>
+                                            <div className="flex items-center space-x-2">
+                                                <span className="text-lg">📊</span>
+                                                <h2 className="text-lg font-bold text-white">Grafana Observability Suite</h2>
+                                                <span className="text-[10px] font-mono bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded border border-orange-500/30">
+                                                    LIVE PROVISIONED
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-slate-400 mt-0.5 font-mono">
+                                                Direct connection to Prometheus metrics engine (1s scrape interval). Quantiles, RPS, Error Rates & Container CPU/Mem.
+                                            </p>
+                                        </div>
+                                        
+                                        <div className="flex items-center space-x-3 font-mono text-xs">
+                                            <button
+                                                onClick={() => setGrafanaRefreshKey(Date.now())}
+                                                className="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white transition flex items-center space-x-1.5"
+                                            >
+                                                <span>🔄</span>
+                                                <span>Refresh Dashboard</span>
+                                            </button>
+                                            <a
+                                                href="http://localhost:3000/d/loadmind-observability/loadmind-performance-stress-observability?orgId=1&refresh=1s"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="px-3 py-1.5 rounded bg-orange-600 hover:bg-orange-500 text-white font-bold transition flex items-center space-x-1.5"
+                                            >
+                                                <span>Launch Full Grafana UI ↗</span>
+                                            </a>
+                                        </div>
+                                    </div>
+
+                                    {/* Full Embedded Grafana Dashboard */}
+                                    <div className="w-full h-[760px] rounded border border-white/[0.08] overflow-hidden bg-[#0a0c10] shadow-2xl">
+                                        <iframe
+                                            src={`http://localhost:3000/d/loadmind-observability/loadmind-performance-stress-observability?orgId=1&refresh=1s&theme=dark&kiosk&t=${grafanaRefreshKey}`}
+                                            className="w-full h-full border-0"
+                                            title="Full Grafana Observability Dashboard"
+                                        ></iframe>
+                                    </div>
+                                </div>
                             </div>
                         ) : (
                             /* AI INCIDENT MEMORY & SELF-LEARNING EXPLORER VIEW */

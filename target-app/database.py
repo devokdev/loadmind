@@ -16,12 +16,21 @@ else:
     max_overflow = 10
     pool_timeout = 30
 
-engine = create_engine(
-    DATABASE_URL,
-    pool_size=pool_size,
-    max_overflow=max_overflow,
-    pool_timeout=pool_timeout
-)
+try:
+    if "sqlite" in DATABASE_URL:
+        engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+    else:
+        engine = create_engine(
+            DATABASE_URL,
+            pool_size=pool_size,
+            max_overflow=max_overflow,
+            pool_timeout=pool_timeout
+        )
+        with engine.connect() as conn:
+            pass
+except Exception as e:
+    print(f"Warning: Database connection failed ({e}). Falling back to local SQLite database.")
+    engine = create_engine("sqlite:///./target.db", connect_args={"check_same_thread": False})
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -31,3 +40,4 @@ def get_db():
         yield db
     finally:
         db.close()
+

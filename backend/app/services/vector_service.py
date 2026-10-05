@@ -14,6 +14,17 @@ class VectorService:
     def _connect(self):
         if self.collection is not None:
             return True
+        import socket
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(0.2)
+            res = sock.connect_ex((CHROMADB_HOST, CHROMADB_PORT))
+            sock.close()
+            if res != 0:
+                return False
+        except Exception:
+            return False
+
         try:
             import chromadb
             from chromadb.utils import embedding_functions

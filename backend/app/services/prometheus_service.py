@@ -4,9 +4,35 @@ from datetime import datetime
 from config import PROMETHEUS_URL
 
 class PrometheusService:
-    def query_prometheus(self, query: str):
+    def __init__(self):
+        self._available = None
+        self._last_check = 0
+
+    def _check_available(self):
+        import time, socket
+        now = time.time()
+        if self._available is not None and (now - self._last_check) < 10:
+            return self._available
+        self._last_check = now
         try:
-            res = requests.get(f"{PROMETHEUS_URL}/api/v1/query", params={"query": query}, timeout=3)
+            from urllib.parse import urlparse
+            p = urlparse(PROMETHEUS_URL)
+            host = p.hostname or "localhost"
+            port = p.port or 9090
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(0.1)
+            res = sock.connect_ex((host, port))
+            sock.close()
+            self._available = (res == 0)
+        except Exception:
+            self._available = False
+        return self._available
+
+    def query_prometheus(self, query: str):
+        if not self._check_available():
+            return 0.0
+        try:
+            res = requests.get(f"{PROMETHEUS_URL}/api/v1/query", params={"query": query}, timeout=0.5)
             if res.status_code == 200:
                 result = res.json().get("data", {}).get("result", [])
                 if result:
