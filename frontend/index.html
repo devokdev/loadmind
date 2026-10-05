@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LoadMind — Autonomous API Stress Testing & AI Performance Engineering</title>
+    <title>LoadMind — Autonomous Performance Engineering & Stress Testing</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & ReactDOM -->
@@ -12,39 +12,43 @@
     <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- Google Fonts: Inter & JetBrains Mono -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-page: #090b10;
-            --card-bg: #0f1219;
-            --border-color: rgba(255, 255, 255, 0.08);
+            --bg-page: #08090d;
+            --bg-sidebar: #0b0c11;
+            --bg-header: #0b0c11;
+            --bg-card: #10121a;
+            --bg-card-subtle: #141620;
+            --border-subtle: rgba(255, 255, 255, 0.05);
+            --border-hover: rgba(255, 255, 255, 0.12);
         }
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background-color: var(--bg-page);
-            color: #f1f5f9;
+            color: #cbd5e1;
             -webkit-font-smoothing: antialiased;
         }
         .mono {
             font-family: 'JetBrains Mono', monospace;
         }
-        .devops-card {
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
+        .matte-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-subtle);
             border-radius: 8px;
         }
-        .devops-card-subtle {
-            background-color: #131722;
-            border: 1px solid rgba(255, 255, 255, 0.05);
+        .matte-card-subtle {
+            background-color: var(--bg-card-subtle);
+            border: 1px solid rgba(255, 255, 255, 0.04);
             border-radius: 6px;
         }
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
     </style>
 </head>
-<body class="min-h-screen">
+<body class="min-h-screen selection:bg-indigo-500/30 selection:text-white">
     <div id="root"></div>
 
     <script type="text/babel">
@@ -62,7 +66,7 @@
                 concurrency: 12,
                 duration: 10,
                 failure_mode: "blocking_async",
-                description: "Synchronous time.sleep(1.0) blocks the FastAPI single-threaded event loop."
+                description: "Synchronous time.sleep(1.0) blocks FastAPI single-threaded event loop, triggering latency spikes under concurrent load."
             },
             {
                 id: "n_plus_one",
@@ -75,7 +79,7 @@
                 concurrency: 15,
                 duration: 12,
                 failure_mode: "n_plus_one",
-                description: "N+1 query amplification: executes a separate SQL query per product vendor in loop."
+                description: "N+1 query amplification: executes a separate SQL query per product vendor inside a loop."
             },
             {
                 id: "db_pool",
@@ -88,7 +92,7 @@
                 concurrency: 15,
                 duration: 12,
                 failure_mode: "db_pool",
-                description: "Holds database connection with pg_sleep(2.0), exhausting PostgreSQL pool limit."
+                description: "Holds database connection with pg_sleep(2.0), quickly exhausting PostgreSQL connection pool limit."
             },
             {
                 id: "public_gateway",
@@ -101,17 +105,18 @@
                 concurrency: 12,
                 duration: 10,
                 failure_mode: "high_network_latency",
-                description: "Calls live public httpbin.org server with 1s network latency. Patch shields client with async circuit breaker."
+                description: "Calls live public httpbin.org server with network latency. Patch shields client with async circuit breaker."
             }
         ];
 
         function App() {
             const [selectedScenario, setSelectedScenario] = useState(SCENARIOS[0]);
+            const [showScenariosList, setShowScenariosList] = useState(false);
             const [targetUrl, setTargetUrl] = useState("http://localhost:8002/checkout/process");
             const [concurrencyInput, setConcurrencyInput] = useState(12);
             const [durationInput, setDurationInput] = useState(10);
             
-            // Workflow States: IDLE, RUNNING, BREAKING_POINT_DETECTED, DIAGNOSIS_READY, PATCH_READY, PATCH_APPLIED, COMPLETED, FAILED
+            // Workflow States: IDLE, RUNNING, BREAKING_POINT_DETECTED, ANALYZING, DIAGNOSIS_READY, PATCH_READY, PATCH_APPLIED, COMPLETED, FAILED
             const [runState, setRunState] = useState("IDLE");
             const [testTimer, setTestTimer] = useState("00:00");
             const [activeNav, setActiveNav] = useState("dashboard");
@@ -166,6 +171,19 @@
                 }
             };
 
+            const selectScenario = (s) => {
+                setSelectedScenario(s);
+                setTargetUrl(s.target);
+                setConcurrencyInput(s.concurrency);
+                setDurationInput(s.duration);
+                setCurrentTest(null);
+                setMetrics([]);
+                setDiagnosis(null);
+                setRemediation(null);
+                setVerification(null);
+                setRunState("IDLE");
+            };
+
             const startStressTest = async (failureModeOverride = null, maxUsersOverride = null) => {
                 setRunState("RUNNING");
                 setMetrics([]);
@@ -176,7 +194,6 @@
                 setTimeline([]);
                 setPatchStatusMsg("");
 
-                // Prevent React synthetic MouseEvent from being treated as failureModeOverride string
                 const activeMode = (typeof failureModeOverride === 'string') ? failureModeOverride : selectedScenario.failure_mode;
                 const activeConcurrency = (typeof maxUsersOverride === 'number') ? maxUsersOverride : (Number(concurrencyInput) || selectedScenario.concurrency);
 
@@ -301,7 +318,6 @@
                         setRunState("DIAGNOSIS_READY");
                     }
 
-                    // Query matching incident memories
                     const memRes = await fetch("http://localhost:8001/api/learning");
                     if (memRes.ok) {
                         const memData = await memRes.json();
@@ -320,12 +336,12 @@
             const applyRemediationPatch = async () => {
                 if (!currentTest) return;
                 setPatchApplying(true);
-                setPatchStatusMsg("Applying code diff to target-app...");
+                setPatchStatusMsg("Applying code diff to target-app container...");
                 addTimelineEvent("Applying code patch diff to target container...", "PATCH");
 
                 try {
                     await new Promise(r => setTimeout(r, 600));
-                    setPatchStatusMsg("Restarting target-app container...");
+                    setPatchStatusMsg("Restarting target-app container via Docker...");
                     addTimelineEvent("Restarting target-app container via Docker API...", "DOCKER");
 
                     const res = await fetch(`http://localhost:8001/api/tests/${currentTest.id}/remediate`, { method: "POST" });
@@ -333,7 +349,7 @@
                     if (res.ok) {
                         const data = await res.json();
                         setRemediation(data.remediation || data);
-                        setPatchStatusMsg("Target health check: 200 OK ✓");
+                        setPatchStatusMsg("Target container health check: 200 OK ✓");
                         addTimelineEvent("Target restarted and verified healthy", "SUCCESS");
                         setRunState("PATCH_APPLIED");
                     } else {
@@ -371,35 +387,63 @@
                 }
             };
 
-            const latestMetric = metrics.length > 0 ? metrics[metrics.length - 1] : null;
+            const resetToNewRun = () => {
+                setCurrentTest(null);
+                setMetrics([]);
+                setDiagnosis(null);
+                setRemediation(null);
+                setVerification(null);
+                setSimilarIncidents([]);
+                setTimeline([]);
+                setPatchStatusMsg("");
+                setRunState("IDLE");
+                setTestTimer("00:00");
+            };
 
-            // Compute actual status code distribution percentages
+            const latestMetric = metrics.length > 0 ? metrics[metrics.length - 1] : null;
             const statusCodeCounts = latestMetric?.status_codes || {};
             const totalStatusReqs = Object.values(statusCodeCounts).reduce((a, b) => a + b, 0) || 1;
 
+            // Determine Dynamic CTA Button State
+            const hasBreakingPoint = Boolean(currentTest?.breaking_point_users || (latestMetric && (latestMetric.p95_ms > 1000 || latestMetric.error_rate > 0.05)));
+            const isExternalTarget = Boolean(targetUrl && !targetUrl.includes("localhost:8002") && !targetUrl.includes("target-app"));
+
+            let ctaMode = "RUN";
+            if (runState === "RUNNING") {
+                ctaMode = "RUNNING";
+            } else if (runState === "ANALYZING") {
+                ctaMode = "ANALYZING";
+            } else if (verification) {
+                ctaMode = "COMPLETED";
+            } else if (remediation?.is_applied || runState === "PATCH_APPLIED") {
+                ctaMode = "VERIFY";
+            } else if (hasBreakingPoint || remediation || runState === "BREAKING_POINT_DETECTED" || runState === "DIAGNOSIS_READY" || runState === "PATCH_READY") {
+                ctaMode = "APPLY_PATCH";
+            }
+
             return (
-                <div className="flex min-h-screen w-full bg-[#090b10] text-slate-200">
+                <div className="flex min-h-screen w-full bg-[#08090d] text-slate-300">
                     
                     {/* LEFT SIDEBAR NAVIGATION */}
-                    <aside className="w-56 shrink-0 border-r border-white/[0.08] flex flex-col justify-between p-4 bg-[#0c0e15] fixed top-0 bottom-0 left-0 z-30">
+                    <aside className="w-56 shrink-0 border-r border-white/[0.05] flex flex-col justify-between p-4 bg-[#0b0c11] fixed top-0 bottom-0 left-0 z-30">
                         <div className="space-y-6">
                             {/* Brand Header */}
                             <div className="flex items-center space-x-2.5 px-2 pt-1">
-                                <div className="w-7 h-7 rounded bg-indigo-600 flex items-center justify-center font-black text-white text-xs">
+                                <div className="w-7 h-7 rounded bg-slate-800 border border-white/10 flex items-center justify-center font-bold text-white text-xs">
                                     LM
                                 </div>
                                 <div>
-                                    <div className="text-sm font-bold tracking-tight text-white leading-none">LoadMind</div>
-                                    <div className="text-[9px] text-slate-500 font-mono tracking-wide uppercase mt-1">Autonomous DevOps</div>
+                                    <div className="text-sm font-semibold tracking-tight text-white leading-none">LoadMind</div>
+                                    <div className="text-[9px] text-slate-500 font-mono tracking-wider uppercase mt-1">Autonomous DevOps</div>
                                 </div>
                             </div>
 
-                            {/* Nav menu */}
+                            {/* Navigation */}
                             <nav className="space-y-1">
                                 <button
                                     onClick={() => setActiveNav("dashboard")}
                                     className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded text-xs font-medium transition ${
-                                        activeNav === 'dashboard' ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30' : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
+                                        activeNav === 'dashboard' ? 'bg-white/[0.08] text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.02]'
                                     }`}
                                 >
                                     <span>⚡</span>
@@ -409,12 +453,12 @@
                                 <button
                                     onClick={() => setActiveNav("grafana")}
                                     className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded text-xs font-medium transition ${
-                                        activeNav === 'grafana' ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30' : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
+                                        activeNav === 'grafana' ? 'bg-white/[0.08] text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.02]'
                                     }`}
                                 >
                                     <span>📊</span>
-                                    <span>Grafana Live Suite</span>
-                                    <span className="ml-auto text-[9px] font-mono bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded border border-orange-500/30 font-bold">
+                                    <span>Grafana Suite</span>
+                                    <span className="ml-auto text-[9px] font-mono bg-orange-500/10 text-orange-400 px-1.5 py-0.5 rounded border border-orange-500/20 font-medium">
                                         GRAFANA
                                     </span>
                                 </button>
@@ -422,13 +466,13 @@
                                 <button
                                     onClick={() => setActiveNav("memory")}
                                     className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded text-xs font-medium transition ${
-                                        activeNav === 'memory' ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30' : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
+                                        activeNav === 'memory' ? 'bg-white/[0.08] text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.02]'
                                     }`}
                                 >
                                     <span>🗃️</span>
-                                    <span>AI Incident Memory</span>
+                                    <span>Incident Memory</span>
                                     {incidentsList.length > 0 && (
-                                        <span className="ml-auto text-[10px] font-mono bg-white/10 px-1.5 py-0.2 rounded text-slate-300">
+                                        <span className="ml-auto text-[10px] font-mono bg-white/5 px-1.5 py-0.2 rounded text-slate-400">
                                             {incidentsList.length}
                                         </span>
                                     )}
@@ -436,8 +480,8 @@
                             </nav>
 
                             {/* Active Pipeline Status */}
-                            <div className="devops-card-subtle p-3 space-y-2 border border-white/[0.06]">
-                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">DevOps Pipeline</div>
+                            <div className="matte-card-subtle p-3 space-y-2">
+                                <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">DevOps Pipeline</div>
                                 <div className="space-y-1.5 text-[11px] font-mono">
                                     <div className="flex items-center space-x-2">
                                         <span className={runState === 'RUNNING' ? 'text-amber-400 animate-pulse' : (metrics.length > 0 ? 'text-emerald-400' : 'text-slate-600')}>
@@ -480,75 +524,75 @@
                         </div>
 
                         {/* Environment metadata */}
-                        <div className="space-y-1 text-[10px] font-mono text-slate-500 pt-3 border-t border-white/[0.06]">
+                        <div className="space-y-1 text-[10px] font-mono text-slate-500 pt-3 border-t border-white/[0.04]">
                             <div>ENV: LOCAL / DOCKER</div>
-                            <div>BACKEND: http://localhost:8001</div>
-                            <div>TARGET: http://localhost:8002</div>
+                            <div>BACKEND: :8001</div>
+                            <div>TARGET: :8002</div>
                         </div>
                     </aside>
 
                     {/* MAIN VIEWPORT */}
                     <div className="pl-56 flex-1 flex flex-col min-h-screen">
                         
-                        {/* 1. TOP DEVOPS HEADER BAR */}
-                        <header className="h-14 border-b border-white/[0.08] px-6 flex items-center justify-between bg-[#0b0e14] sticky top-0 z-20">
+                        {/* 1. TOP HEADER BAR */}
+                        <header className="h-14 border-b border-white/[0.05] px-6 flex items-center justify-between bg-[#0b0c11] sticky top-0 z-20">
                             <div className="flex items-center space-x-4">
                                 <div className="flex items-center space-x-2">
-                                    <span className="text-xs font-semibold text-slate-300">Target:</span>
+                                    <span className="text-xs text-slate-400">Target:</span>
                                     <input 
                                         type="text" 
                                         value={targetUrl}
                                         onChange={(e) => setTargetUrl(e.target.value)}
                                         disabled={runState === 'RUNNING'}
-                                        className="bg-[#141824] border border-white/10 rounded px-2 py-1 text-xs font-mono text-white outline-none w-72 focus:border-indigo-500"
+                                        className="bg-[#12141c] border border-white/[0.06] rounded px-2.5 py-1 text-xs font-mono text-slate-200 outline-none w-72 focus:border-white/20"
                                     />
                                 </div>
 
                                 <div className="flex items-center space-x-2 text-xs font-mono">
                                     <span className="text-slate-500">RUN:</span>
-                                    <span className="text-slate-300 font-bold">#{currentTest?.id ? String(currentTest.id).padStart(3, '0') : '001'}</span>
+                                    <span className="text-slate-300 font-semibold">#{currentTest?.id ? String(currentTest.id).padStart(3, '0') : '001'}</span>
                                 </div>
                             </div>
 
                             <div className="flex items-center space-x-4 text-xs font-mono">
                                 <div className="flex items-center space-x-2">
-                                    <span className="text-slate-400">Status:</span>
-                                    <span className={`px-2 py-0.5 rounded font-bold uppercase text-[10px] ${
-                                        runState === 'RUNNING' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse' :
-                                        runState === 'BREAKING_POINT_DETECTED' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
-                                        runState === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
-                                        'bg-slate-800 text-slate-400'
+                                    <span className="text-slate-500">Status:</span>
+                                    <span className={`px-2 py-0.5 rounded font-semibold uppercase text-[10px] ${
+                                        runState === 'RUNNING' ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20 animate-pulse' :
+                                        runState === 'BREAKING_POINT_DETECTED' ? 'bg-red-500/10 text-red-300 border border-red-500/20' :
+                                        runState === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' :
+                                        'bg-white/5 text-slate-400'
                                     }`}>
                                         ● {runState}
                                     </span>
                                 </div>
 
-                                <div className="text-slate-400 pl-3 border-l border-white/[0.08]">
-                                    Duration: <span className="text-white font-bold">{testTimer}</span>
+                                <div className="text-slate-400 pl-3 border-l border-white/[0.05]">
+                                    Duration: <span className="text-white font-semibold">{testTimer}</span>
                                 </div>
                             </div>
                         </header>
 
                         {/* 2. MAIN WORKSPACE */}
                         {activeNav === "dashboard" ? (
-                            <div className="p-6 space-y-6 max-w-[1600px] w-full mx-auto">
+                            <div className="p-6 space-y-5 max-w-[1600px] w-full mx-auto">
                                 
-                                {/* SCENARIOS & RUN CONTROLLER */}
-                                <div className="devops-card p-5 space-y-4">
+                                {/* MINIMAL CONTROLLER & SINGLE ACTIVE SCENARIO */}
+                                <div className="matte-card p-5 space-y-4">
                                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                                         <div>
-                                            <h1 className="text-base font-bold text-white flex items-center space-x-2">
+                                            <h1 className="text-sm font-semibold text-white flex items-center space-x-2">
                                                 <span>Autonomous Stress Testing Engine</span>
-                                                <span className="text-xs font-normal text-slate-400 font-mono">(Step-Ramp Workload)</span>
+                                                <span className="text-xs font-normal text-slate-500 font-mono">(Step-Ramp Workload)</span>
                                             </h1>
                                             <p className="text-xs text-slate-400 mt-0.5">
-                                                Ramps synthetic concurrency until threshold triggered: <strong className="text-red-400 font-mono">P95 &gt; 1000ms</strong> or <strong className="text-red-400 font-mono">Error Rate &gt; 5%</strong>
+                                                Ramps concurrency until breaking point: <span className="text-red-400/90 font-mono">P95 &gt; 1000ms</span> or <span className="text-red-400/90 font-mono">Error Rate &gt; 5%</span>
                                             </p>
                                         </div>
 
-                                        {/* Action Controls */}
+                                        {/* Action Controls & Dynamic Morphing CTA */}
                                         <div className="flex items-center space-x-3">
-                                            <div className="flex items-center space-x-2 bg-[#121622] border border-white/10 rounded px-2.5 py-1.5 text-xs font-mono">
+                                            <div className="flex items-center space-x-2 bg-[#12141c] border border-white/[0.05] rounded px-2.5 py-1.5 text-xs font-mono">
                                                 <span className="text-slate-400">Max Users:</span>
                                                 <input 
                                                     type="number"
@@ -557,11 +601,11 @@
                                                     value={concurrencyInput}
                                                     onChange={(e) => setConcurrencyInput(e.target.value)}
                                                     disabled={runState === 'RUNNING'}
-                                                    className="w-12 bg-transparent text-white font-bold outline-none border-b border-slate-600 focus:border-indigo-400"
+                                                    className="w-12 bg-transparent text-white font-semibold outline-none border-b border-slate-700 focus:border-slate-400 text-center"
                                                 />
                                             </div>
 
-                                            <div className="flex items-center space-x-2 bg-[#121622] border border-white/10 rounded px-2.5 py-1.5 text-xs font-mono">
+                                            <div className="flex items-center space-x-2 bg-[#12141c] border border-white/[0.05] rounded px-2.5 py-1.5 text-xs font-mono">
                                                 <span className="text-slate-400">Duration:</span>
                                                 <input 
                                                     type="number"
@@ -570,82 +614,173 @@
                                                     value={durationInput}
                                                     onChange={(e) => setDurationInput(e.target.value)}
                                                     disabled={runState === 'RUNNING'}
-                                                    className="w-10 bg-transparent text-white font-bold outline-none border-b border-slate-600 focus:border-indigo-400"
+                                                    className="w-10 bg-transparent text-white font-semibold outline-none border-b border-slate-700 focus:border-slate-400 text-center"
                                                 />
                                                 <span className="text-slate-500">s</span>
                                             </div>
 
-                                            <button
-                                                onClick={() => startStressTest()}
-                                                disabled={runState === 'RUNNING' || isVerifying}
-                                                className={`px-4 py-2 rounded text-xs font-bold font-mono transition flex items-center space-x-2 ${
-                                                    runState === 'RUNNING'
-                                                        ? 'bg-amber-600/30 text-amber-300 border border-amber-500/50 cursor-not-allowed'
-                                                        : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow'
-                                                }`}
-                                            >
-                                                <span>{runState === 'RUNNING' ? '⏳' : '▶'}</span>
-                                                <span>{runState === 'RUNNING' ? `Testing (${testTimer})...` : 'Run Stress Test'}</span>
-                                            </button>
+                                            {/* DYNAMIC MORPHING BUTTON: Run Stress Test -> Apply Patch -> Run Verification */}
+                                            {ctaMode === "RUN" && (
+                                                <button
+                                                    onClick={() => startStressTest()}
+                                                    disabled={runState === 'RUNNING' || isVerifying}
+                                                    className="px-4 py-2 rounded text-xs font-semibold font-mono bg-slate-100 hover:bg-white text-slate-900 transition flex items-center space-x-2 shadow-sm"
+                                                >
+                                                    <span>▶</span>
+                                                    <span>Run Stress Test</span>
+                                                </button>
+                                            )}
+
+                                            {ctaMode === "RUNNING" && (
+                                                <button
+                                                    disabled
+                                                    className="px-4 py-2 rounded text-xs font-semibold font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30 cursor-not-allowed flex items-center space-x-2"
+                                                >
+                                                    <span className="animate-spin">⚙</span>
+                                                    <span>Testing ({testTimer})...</span>
+                                                </button>
+                                            )}
+
+                                            {ctaMode === "ANALYZING" && (
+                                                <button
+                                                    disabled
+                                                    className="px-4 py-2 rounded text-xs font-semibold font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 cursor-not-allowed flex items-center space-x-2"
+                                                >
+                                                    <span className="animate-pulse">●</span>
+                                                    <span>AI Diagnosing...</span>
+                                                </button>
+                                            )}
+
+                                            {ctaMode === "APPLY_PATCH" && (
+                                                <button
+                                                    onClick={applyRemediationPatch}
+                                                    disabled={patchApplying || isExternalTarget}
+                                                    className={`px-4 py-2 rounded text-xs font-semibold font-mono transition flex items-center space-x-2 ${
+                                                        isExternalTarget
+                                                            ? 'bg-white/5 text-slate-500 cursor-not-allowed'
+                                                            : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
+                                                    }`}
+                                                >
+                                                    <span>{patchApplying ? '⏳' : '🔧'}</span>
+                                                    <span>{patchApplying ? 'Applying Patch...' : (isExternalTarget ? 'Auto-Patch (External API)' : 'Apply Patch')}</span>
+                                                </button>
+                                            )}
+
+                                            {ctaMode === "VERIFY" && (
+                                                <button
+                                                    onClick={runPostFixVerification}
+                                                    disabled={isVerifying}
+                                                    className="px-4 py-2 rounded text-xs font-semibold font-mono bg-indigo-600 hover:bg-indigo-500 text-white transition flex items-center space-x-2 shadow-sm"
+                                                >
+                                                    <span>{isVerifying ? '⏳' : '✓'}</span>
+                                                    <span>{isVerifying ? 'Verifying...' : 'Run Verification'}</span>
+                                                </button>
+                                            )}
+
+                                            {ctaMode === "COMPLETED" && (
+                                                <div className="flex items-center space-x-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            const nextConcurrency = Math.min(200, (currentTest?.breaking_point_users || 4) * 4);
+                                                            setConcurrencyInput(nextConcurrency);
+                                                            startStressTest("none", nextConcurrency);
+                                                        }}
+                                                        disabled={runState === 'RUNNING'}
+                                                        className="px-3.5 py-2 rounded text-xs font-semibold font-mono bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center space-x-1.5"
+                                                    >
+                                                        <span>🔁</span>
+                                                        <span>Run Next Loop</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={resetToNewRun}
+                                                        className="px-3 py-2 rounded text-xs font-mono bg-white/5 hover:bg-white/10 text-slate-300 transition"
+                                                        title="Reset test workspace"
+                                                    >
+                                                        Reset
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
-                                    {/* Scenario Preset Selector Cards */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
-                                        {SCENARIOS.map((s) => {
-                                            const isSel = selectedScenario.id === s.id;
-                                            return (
-                                                <button
-                                                    key={s.id}
-                                                    disabled={runState === 'RUNNING'}
-                                                    onClick={() => {
-                                                        setSelectedScenario(s);
-                                                        setTargetUrl(s.target);
-                                                        setConcurrencyInput(s.concurrency);
-                                                        setDurationInput(s.duration);
-                                                        setCurrentTest(null);
-                                                        setMetrics([]);
-                                                        setDiagnosis(null);
-                                                        setRemediation(null);
-                                                        setVerification(null);
-                                                        setRunState("IDLE");
-                                                    }}
-                                                    className={`p-3 rounded border text-left transition flex flex-col justify-between h-28 ${
-                                                        isSel 
-                                                            ? 'bg-indigo-950/40 border-indigo-500 text-white' 
-                                                            : 'bg-[#11141d] border-white/[0.06] text-slate-400 hover:border-white/20'
-                                                    }`}
-                                                >
-                                                    <div>
-                                                        <div className="flex items-center justify-between">
-                                                            <div className="font-bold text-xs text-white">{s.name}</div>
-                                                            {isSel && <span className="text-[10px] font-mono text-indigo-400 font-bold">ACTIVE</span>}
-                                                        </div>
-                                                        <div className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">{s.description}</div>
-                                                    </div>
-                                                    <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 pt-1 border-t border-white/[0.04]">
-                                                        <span>Mode: {s.failure_mode}</span>
-                                                        <span>{s.concurrency} Users</span>
-                                                    </div>
-                                                </button>
-                                            );
-                                        })}
+                                    {/* ACTIVE SCENARIO CARD */}
+                                    <div className="matte-card-subtle p-3.5 border border-white/[0.05] flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                        <div className="space-y-1">
+                                            <div className="flex items-center space-x-2.5">
+                                                <span className="text-xs font-bold text-white">{selectedScenario.name}</span>
+                                                <span className="text-[10px] font-mono bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-white/5">
+                                                    ACTIVE SCENARIO
+                                                </span>
+                                                <span className="text-[10px] font-mono text-slate-400">
+                                                    Mode: <strong className="text-slate-300">{selectedScenario.failure_mode}</strong>
+                                                </span>
+                                            </div>
+                                            <div className="text-xs text-slate-400 leading-relaxed max-w-3xl">
+                                                {selectedScenario.description}
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            onClick={() => setShowScenariosList(!showScenariosList)}
+                                            className="self-start md:self-center px-3 py-1.5 rounded text-xs font-mono bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 border border-white/[0.05] transition flex items-center space-x-2 shrink-0"
+                                        >
+                                            <span>Example Test Scenarios ({SCENARIOS.length - 1} more)</span>
+                                            <span className="text-[10px] text-slate-400">{showScenariosList ? '▲' : '▼'}</span>
+                                        </button>
                                     </div>
+
+                                    {/* COLLAPSIBLE PRESET SCENARIOS SECTION */}
+                                    {showScenariosList && (
+                                        <div className="pt-2 border-t border-white/[0.04] space-y-2">
+                                            <div className="text-[10px] font-mono uppercase text-slate-500">
+                                                Select alternative test scenario:
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                                                {SCENARIOS.map((s) => {
+                                                    const isSel = selectedScenario.id === s.id;
+                                                    return (
+                                                        <button
+                                                            key={s.id}
+                                                            disabled={runState === 'RUNNING'}
+                                                            onClick={() => selectScenario(s)}
+                                                            className={`p-3 rounded text-left transition flex flex-col justify-between h-28 border ${
+                                                                isSel 
+                                                                    ? 'bg-white/[0.08] border-white/20 text-white' 
+                                                                    : 'bg-[#12141c] border-white/[0.04] text-slate-400 hover:border-white/10 hover:text-slate-200'
+                                                            }`}
+                                                        >
+                                                            <div>
+                                                                <div className="flex items-center justify-between">
+                                                                    <div className="font-semibold text-xs text-white truncate">{s.name}</div>
+                                                                    {isSel && <span className="text-[9px] font-mono text-emerald-400">ACTIVE</span>}
+                                                                </div>
+                                                                <div className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">{s.description}</div>
+                                                            </div>
+                                                            <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 pt-1 border-t border-white/[0.03]">
+                                                                <span>{s.failure_mode}</span>
+                                                                <span>{s.concurrency} Users</span>
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* PRIMARY OBSERVABILITY REGION */}
-                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
                                     
                                     {/* LEFT: LIVE DEVOPS LATENCY CHART & LOAD PROFILE (8 cols) */}
                                     <div className="lg:col-span-8 space-y-4">
-                                        <div className="devops-card p-4 space-y-3">
+                                        <div className="matte-card p-4 space-y-3">
                                             <div className="flex items-center justify-between">
-                                                <div className="flex items-center space-x-3">
-                                                    <span className="text-xs font-bold text-white uppercase tracking-wide flex items-center space-x-2">
+                                                <div className="flex items-center space-x-2.5">
+                                                    <span className="text-xs font-semibold text-white tracking-wide flex items-center space-x-2">
                                                         <span className="text-orange-400 font-mono">📊 Grafana</span>
                                                         <span>Live Response Time & Latency Quantiles</span>
                                                     </span>
-                                                    <span className={`w-2 h-2 rounded-full ${runState === 'RUNNING' ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}`}></span>
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${runState === 'RUNNING' ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}`}></span>
                                                 </div>
                                                 
                                                 <div className="flex items-center space-x-3 text-xs font-mono text-slate-400">
@@ -653,17 +788,17 @@
                                                         href="http://localhost:3000/d/loadmind-observability/loadmind-performance-stress-observability?orgId=1&refresh=1s&kiosk"
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="text-[11px] text-orange-400 hover:text-orange-300 underline flex items-center space-x-1"
+                                                        className="text-[11px] text-orange-400/90 hover:text-orange-300 underline flex items-center space-x-1"
                                                     >
                                                         <span>Open in Grafana ↗</span>
                                                     </a>
                                                     <span className="border-l border-white/10 pl-3">Active: <strong className="text-white">{latestMetric ? `${latestMetric.users} users` : (runState === 'RUNNING' ? `${concurrencyInput} users` : '0')}</strong></span>
-                                                    <span>Stage: <strong className="text-indigo-400">{latestMetric?.current_stage ? `${latestMetric.current_stage}/${latestMetric.total_stages}` : (runState === 'RUNNING' ? '1/4' : 'Idle')}</strong></span>
+                                                    <span>Stage: <strong className="text-slate-300">{latestMetric?.current_stage ? `${latestMetric.current_stage}/${latestMetric.total_stages}` : (runState === 'RUNNING' ? '1/4' : 'Idle')}</strong></span>
                                                 </div>
                                             </div>
 
                                             {/* Embedded Grafana Observability Dashboard Panel */}
-                                            <div className="h-80 w-full bg-[#080a0f] rounded border border-white/[0.08] overflow-hidden relative">
+                                            <div className="h-80 w-full bg-[#08090d] rounded border border-white/[0.04] overflow-hidden relative">
                                                 <iframe
                                                     src={`http://localhost:3000/d-solo/loadmind-observability/loadmind-performance-stress-observability?orgId=1&panelId=1&refresh=1s&theme=dark&from=now-5m&to=now&kiosk&t=${grafanaRefreshKey}`}
                                                     className="w-full h-full border-0"
@@ -672,8 +807,8 @@
                                             </div>
 
                                             {/* Real Load Profile Stage Stepper */}
-                                            <div className="devops-card-subtle p-3 space-y-2">
-                                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono flex items-center justify-between">
+                                            <div className="matte-card-subtle p-3 space-y-2">
+                                                <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider font-mono flex items-center justify-between">
                                                     <span>Active Load Profile: Step Ramp Progression</span>
                                                     <span className="text-slate-500">Threshold: P95 &gt; 1000ms</span>
                                                 </div>
@@ -687,15 +822,15 @@
                                                         return (
                                                             <div 
                                                                 key={idx}
-                                                                className={`p-2 rounded border text-center ${
-                                                                    isBroken ? 'bg-red-950/50 border-red-500 text-red-300 font-bold' :
-                                                                    isCurrent ? 'bg-amber-950/40 border-amber-500 text-amber-200' :
-                                                                    isPassed ? 'bg-emerald-950/30 border-emerald-500/50 text-emerald-300' :
-                                                                    'bg-[#121520] border-white/[0.05] text-slate-500'
+                                                                className={`p-2 rounded border text-center transition ${
+                                                                    isBroken ? 'bg-red-950/40 border-red-500/40 text-red-300 font-semibold' :
+                                                                    isCurrent ? 'bg-amber-950/30 border-amber-500/40 text-amber-200' :
+                                                                    isPassed ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-300' :
+                                                                    'bg-[#12141c] border-white/[0.03] text-slate-500'
                                                                 }`}
                                                             >
                                                                 <div className="text-[10px]">Stage {idx + 1}</div>
-                                                                <div className="text-xs font-bold mt-0.5">{stageUsers} Users</div>
+                                                                <div className="text-xs font-semibold mt-0.5">{stageUsers} Users</div>
                                                                 <div className="text-[9px] mt-0.5">
                                                                     {isBroken ? '⚠ BROKE' : (isCurrent ? '● ACTIVE' : (isPassed ? '✓ PASS' : 'WAIT'))}
                                                                 </div>
@@ -707,65 +842,65 @@
                                         </div>
 
                                         {/* REAL TELEMETRY OBSERVABILITY PANEL */}
-                                        <div className="devops-card p-4 space-y-3">
-                                            <div className="text-xs font-bold text-white uppercase tracking-wide flex items-center justify-between">
+                                        <div className="matte-card p-4 space-y-3">
+                                            <div className="text-xs font-semibold text-white uppercase tracking-wide flex items-center justify-between">
                                                 <span>Observed Telemetry Metrics (Real-Time)</span>
                                                 <span className="text-[10px] font-mono text-slate-500">Source: FastAPI synthetic collector + Prometheus</span>
                                             </div>
 
                                             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 font-mono">
-                                                <div className="devops-card-subtle p-2.5">
+                                                <div className="matte-card-subtle p-2.5">
                                                     <div className="text-[10px] text-slate-400">P50 Latency</div>
-                                                    <div className="text-sm font-bold text-white mt-1">
-                                                        {latestMetric ? `${latestMetric.p50_ms} ms` : (currentTest?.p50_ms ? `${currentTest.p50_ms} ms` : 'Not run')}
+                                                    <div className="text-sm font-semibold text-white mt-1">
+                                                        {latestMetric ? `${latestMetric.p50_ms} ms` : (currentTest?.p50_ms ? `${currentTest.p50_ms} ms` : '—')}
                                                     </div>
                                                 </div>
 
-                                                <div className="devops-card-subtle p-2.5">
+                                                <div className="matte-card-subtle p-2.5">
                                                     <div className="text-[10px] text-slate-400">P95 Latency</div>
-                                                    <div className={`text-sm font-bold mt-1 ${latestMetric?.p95_ms > 1000 ? 'text-red-400' : 'text-white'}`}>
-                                                        {latestMetric ? `${latestMetric.p95_ms} ms` : (currentTest?.p95_ms ? `${currentTest.p95_ms} ms` : 'Not run')}
+                                                    <div className={`text-sm font-semibold mt-1 ${latestMetric?.p95_ms > 1000 ? 'text-red-400' : 'text-white'}`}>
+                                                        {latestMetric ? `${latestMetric.p95_ms} ms` : (currentTest?.p95_ms ? `${currentTest.p95_ms} ms` : '—')}
                                                     </div>
                                                 </div>
 
-                                                <div className="devops-card-subtle p-2.5">
+                                                <div className="matte-card-subtle p-2.5">
                                                     <div className="text-[10px] text-slate-400">P99 Latency</div>
-                                                    <div className="text-sm font-bold text-white mt-1">
-                                                        {latestMetric ? `${latestMetric.p99_ms} ms` : (currentTest?.p99_ms ? `${currentTest.p99_ms} ms` : 'Not run')}
+                                                    <div className="text-sm font-semibold text-white mt-1">
+                                                        {latestMetric ? `${latestMetric.p99_ms} ms` : (currentTest?.p99_ms ? `${currentTest.p99_ms} ms` : '—')}
                                                     </div>
                                                 </div>
 
-                                                <div className="devops-card-subtle p-2.5">
+                                                <div className="matte-card-subtle p-2.5">
                                                     <div className="text-[10px] text-slate-400">Throughput</div>
-                                                    <div className="text-sm font-bold text-white mt-1">
-                                                        {latestMetric ? `${latestMetric.rps} req/s` : (currentTest?.avg_rps ? `${currentTest.avg_rps} req/s` : 'Not run')}
+                                                    <div className="text-sm font-semibold text-white mt-1">
+                                                        {latestMetric ? `${latestMetric.rps} req/s` : (currentTest?.avg_rps ? `${currentTest.avg_rps} req/s` : '—')}
                                                     </div>
                                                 </div>
 
-                                                <div className="devops-card-subtle p-2.5">
+                                                <div className="matte-card-subtle p-2.5">
                                                     <div className="text-[10px] text-slate-400">Error Rate</div>
-                                                    <div className={`text-sm font-bold mt-1 ${latestMetric?.error_rate > 0.05 ? 'text-red-400' : 'text-white'}`}>
+                                                    <div className={`text-sm font-semibold mt-1 ${latestMetric?.error_rate > 0.05 ? 'text-red-400' : 'text-white'}`}>
                                                         {latestMetric ? `${(latestMetric.error_rate * 100).toFixed(1)}%` : (currentTest?.error_rate !== undefined ? `${(currentTest.error_rate * 100).toFixed(1)}%` : '0.0%')}
                                                     </div>
                                                 </div>
 
-                                                <div className="devops-card-subtle p-2.5">
+                                                <div className="matte-card-subtle p-2.5">
                                                     <div className="text-[10px] text-slate-400">Target CPU</div>
-                                                    <div className="text-sm font-bold text-slate-300 mt-1">
-                                                        {latestMetric?.cpu_percent > 0 ? `${latestMetric.cpu_percent}%` : 'Not available'}
+                                                    <div className="text-sm font-semibold text-slate-300 mt-1">
+                                                        {latestMetric?.cpu_percent > 0 ? `${latestMetric.cpu_percent}%` : '—'}
                                                     </div>
                                                 </div>
 
-                                                <div className="devops-card-subtle p-2.5">
-                                                    <div className="text-[10px] text-slate-400">Target Memory</div>
-                                                    <div className="text-sm font-bold text-slate-300 mt-1">
-                                                        {latestMetric?.memory_mb > 0 ? `${latestMetric.memory_mb} MB` : 'Not available'}
+                                                <div className="matte-card-subtle p-2.5">
+                                                    <div className="text-[10px] text-slate-400">Target Mem</div>
+                                                    <div className="text-sm font-semibold text-slate-300 mt-1">
+                                                        {latestMetric?.memory_mb > 0 ? `${latestMetric.memory_mb} MB` : '—'}
                                                     </div>
                                                 </div>
                                             </div>
 
                                             {/* HTTP Status Code Distribution */}
-                                            <div className="pt-2 flex items-center space-x-4 text-xs font-mono border-t border-white/[0.04]">
+                                            <div className="pt-2 flex items-center space-x-4 text-xs font-mono border-t border-white/[0.03]">
                                                 <span className="text-slate-400">HTTP Status Distribution:</span>
                                                 {Object.keys(statusCodeCounts).length > 0 ? (
                                                     Object.entries(statusCodeCounts).map(([code, count]) => {
@@ -773,7 +908,7 @@
                                                         const isErr = Number(code) >= 400;
                                                         return (
                                                             <div key={code} className="flex items-center space-x-1.5">
-                                                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${isErr ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                                                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${isErr ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
                                                                     {code}
                                                                 </span>
                                                                 <span className="text-slate-300">{count} reqs ({pct}%)</span>
@@ -792,15 +927,15 @@
                                     <div className="lg:col-span-4 space-y-4">
                                         
                                         {/* 1. BREAKING POINT CALCULATION CARD */}
-                                        <div className={`devops-card p-4 border ${
+                                        <div className={`matte-card p-4 border transition ${
                                             currentTest?.breaking_point_users 
-                                                ? 'border-red-500/40 bg-[#171015]' 
-                                                : 'border-white/[0.08]'
+                                                ? 'border-red-500/30 bg-[#140e13]' 
+                                                : 'border-white/[0.05]'
                                         }`}>
-                                            <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
-                                                <span className="text-xs font-bold text-white uppercase font-mono">Breaking Point Detection</span>
-                                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
-                                                    currentTest?.breaking_point_users ? 'bg-red-500 text-white' : 'bg-white/10 text-slate-400'
+                                            <div className="flex items-center justify-between pb-2 border-b border-white/[0.05]">
+                                                <span className="text-xs font-semibold text-white uppercase font-mono">Breaking Point Detection</span>
+                                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-semibold ${
+                                                    currentTest?.breaking_point_users ? 'bg-red-500/20 text-red-300 border border-red-500/30' : 'bg-white/5 text-slate-400'
                                                 }`}>
                                                     {currentTest?.breaking_point_users ? 'DETECTED' : (runState === 'RUNNING' ? 'MONITORING' : 'IDLE')}
                                                 </span>
@@ -809,25 +944,25 @@
                                             <div className="mt-3 space-y-2">
                                                 <div>
                                                     <div className="text-[10px] text-slate-400 font-mono">Max Sustainable Concurrency:</div>
-                                                    <div className="text-2xl font-black text-white font-mono mt-0.5">
+                                                    <div className="text-2xl font-bold text-white font-mono mt-0.5">
                                                         {currentTest?.breaking_point_users ? `${currentTest.breaking_point_users} Users` : (runState === 'RUNNING' ? 'Evaluating...' : 'Not Run')}
                                                     </div>
                                                 </div>
 
                                                 <div className="text-xs font-mono text-slate-300">
-                                                    Trigger: <span className="text-red-400 font-bold">
+                                                    Trigger: <span className="text-red-400/90 font-semibold">
                                                         {currentTest?.p95_ms > 1000 ? `P95 Latency (${currentTest.p95_ms}ms > 1000ms)` : (currentTest?.error_rate > 0.05 ? `Error Rate (${(currentTest.error_rate*100).toFixed(1)}% > 5%)` : 'None')}
                                                     </span>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        {/* 2. AI ROOT-CAUSE DIAGNOSIS & EVIDENCE CARD */}
-                                        <div className="devops-card p-4 space-y-3">
-                                            <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
-                                                <span className="text-xs font-bold text-white uppercase font-mono">AI Root-Cause Diagnosis</span>
-                                                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300">
-                                                    {diagnosis ? `Confidence: ${Math.round(diagnosis.confidence * 100)}%` : 'Groq LLM Engine'}
+                                        {/* 2. AI ROOT-CAUSE DIAGNOSIS CARD */}
+                                        <div className="matte-card p-4 space-y-3">
+                                            <div className="flex items-center justify-between pb-2 border-b border-white/[0.05]">
+                                                <span className="text-xs font-semibold text-white uppercase font-mono">AI Root-Cause Diagnosis</span>
+                                                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 text-slate-300 border border-white/5">
+                                                    {diagnosis ? `Confidence: ${Math.round(diagnosis.confidence * 100)}%` : 'Groq Diagnostician'}
                                                 </span>
                                             </div>
 
@@ -836,10 +971,10 @@
                                                     <div>
                                                         <div className="text-[10px] text-slate-400 font-mono uppercase">Probable Cause</div>
                                                         <div className="flex items-center space-x-2 mt-0.5">
-                                                            <span className="text-sm font-bold text-indigo-300 font-mono">
+                                                            <span className="text-xs font-bold text-white font-mono">
                                                                 {diagnosis.primary_root_cause}
                                                             </span>
-                                                            <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-200">
+                                                            <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-slate-300">
                                                                 {diagnosis.primary_root_cause === 'blocking_async' ? 'Thread Blocked by Sync Call' :
                                                                  diagnosis.primary_root_cause === 'n_plus_one' ? 'Repeated Database Queries in Loop' :
                                                                  diagnosis.primary_root_cause === 'db_pool' ? 'Database Connection Pool Starvation' :
@@ -849,14 +984,14 @@
                                                             </span>
                                                         </div>
                                                         
-                                                        {/* Simple Plain-English Explanation */}
-                                                        <div className="mt-2 p-2.5 rounded bg-indigo-950/30 border border-indigo-500/20 text-[11px] text-slate-200 leading-relaxed">
-                                                            <span className="font-bold text-indigo-300">💡 Simple Explanation: </span>
-                                                            {diagnosis.primary_root_cause === 'blocking_async' && "The endpoint used a synchronous time.sleep() which halted the server's single main thread. While 1 user was served, all other users were locked out and queued up, causing latency to spike past 2 seconds."}
-                                                            {diagnosis.primary_root_cause === 'n_plus_one' && "For every single item requested, the server fired a new SQL query to the database instead of loading them all in 1 batch, slowing down database responses under concurrent load."}
-                                                            {diagnosis.primary_root_cause === 'db_pool' && "The endpoint held onto database connections without releasing them. When more users connected, the database ran out of available connections and requests timed out."}
-                                                            {diagnosis.primary_root_cause === 'missing_index' && "The database had to scan every single row on disk to find the requested user orders because no search index was defined on user_id."}
-                                                            {diagnosis.primary_root_cause === 'unbounded_cache' && "The server stored every request payload into memory without deleting old items, causing memory usage to climb until the container slowed down."}
+                                                        {/* Plain-English Explanation */}
+                                                        <div className="mt-2 p-2.5 rounded bg-[#141622] border border-white/[0.05] text-[11px] text-slate-300 leading-relaxed">
+                                                            <span className="font-semibold text-white">💡 Explanation: </span>
+                                                            {diagnosis.primary_root_cause === 'blocking_async' && "The endpoint used a synchronous time.sleep() which halted FastAPI's main thread. While 1 user was served, all concurrent requests were blocked in queue."}
+                                                            {diagnosis.primary_root_cause === 'n_plus_one' && "For every product item returned, the server executed an individual SQL query inside a loop instead of performing a single bulk join."}
+                                                            {diagnosis.primary_root_cause === 'db_pool' && "The endpoint held onto database connections without releasing them, rapidly starving PostgreSQL's connection pool limit."}
+                                                            {diagnosis.primary_root_cause === 'missing_index' && "The database scanned all table rows on disk because no index was present on user_id."}
+                                                            {diagnosis.primary_root_cause === 'unbounded_cache' && "The server stored all incoming request payloads into memory without cache eviction, causing memory pressure."}
                                                         </div>
                                                     </div>
 
@@ -868,111 +1003,67 @@
                                                             ))}
                                                         </ul>
                                                     </div>
-
-                                                    {diagnosis.alternative_causes && diagnosis.alternative_causes.length > 0 && (
-                                                        <div>
-                                                            <div className="text-[10px] text-slate-400 font-mono uppercase">Alternative Causes</div>
-                                                            <div className="text-[11px] text-slate-400 font-mono">
-                                                                {diagnosis.alternative_causes.join(", ")}
-                                                            </div>
-                                                        </div>
-                                                    )}
                                                 </div>
                                             ) : (
                                                 <div className="py-6 text-center text-xs text-slate-500 italic font-mono">
-                                                    {runState === 'ANALYZING' ? 'AI analyzing telemetry snapshot & memory...' : 'Run a stress test to trigger real-time AI diagnosis.'}
+                                                    {runState === 'ANALYZING' ? 'AI analyzing telemetry snapshot & memory...' : 'Run stress test to activate root-cause diagnostics.'}
                                                 </div>
                                             )}
                                         </div>
 
                                         {/* 3. CODE REMEDIATION & VERIFICATION CARD */}
-                                        <div className="devops-card p-4 space-y-3 border-emerald-500/30">
-                                            <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
-                                                <span className="text-xs font-bold text-white uppercase font-mono">Remediation & Patch</span>
-                                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
-                                                    remediation?.is_applied ? 'bg-emerald-500 text-white' : (remediation ? 'bg-amber-500/20 text-amber-300' : 'bg-white/10 text-slate-400')
+                                        <div className="matte-card p-4 space-y-3">
+                                            <div className="flex items-center justify-between pb-2 border-b border-white/[0.05]">
+                                                <span className="text-xs font-semibold text-white uppercase font-mono">Remediation Prescription</span>
+                                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-semibold ${
+                                                    remediation?.is_applied ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : (remediation ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20' : 'bg-white/5 text-slate-400')
                                                 }`}>
                                                     {remediation?.is_applied ? 'PATCH APPLIED' : (remediation ? 'PATCH READY' : 'IDLE')}
                                                 </span>
                                             </div>
 
-                                            {/* Patch Code Diff or Client-Side Advice Box */}
-                                            <div className="bg-[#08090d] rounded p-2.5 font-mono text-xs text-slate-300 border border-white/[0.06] max-h-36 overflow-y-auto">
-                                                {targetUrl && !targetUrl.includes("localhost:8002") && !targetUrl.includes("target-app") ? (
+                                            {/* Patch Code Diff or Advice Box */}
+                                            <div className="bg-[#08090d] rounded p-2.5 font-mono text-xs text-slate-300 border border-white/[0.04] max-h-36 overflow-y-auto">
+                                                {isExternalTarget ? (
                                                     <div className="space-y-1 text-[11px] leading-relaxed">
-                                                        <div className="text-amber-300 font-bold">🌐 Third-Party External Endpoint:</div>
-                                                        <div className="text-slate-300">Remote server is outside cluster control. Prescribing consumer-side resilience pattern:</div>
-                                                        <pre className="text-emerald-400 mt-1 text-[10px] whitespace-pre-wrap">{remediation?.architecture_advice || "1. Configure Circuit Breaker (PyBreaker / Resilience4j).\n2. Set HTTP client timeout: httpx.AsyncClient(timeout=2.0).\n3. Offload downstream calls to background worker queue (Celery)."}</pre>
+                                                        <div className="text-amber-300 font-semibold">🌐 Third-Party External API:</div>
+                                                        <div className="text-slate-400">Prescribing consumer-side resilience pattern:</div>
+                                                        <pre className="text-emerald-400 mt-1 text-[10px] whitespace-pre-wrap">{remediation?.architecture_advice || "1. Configure Circuit Breaker.\n2. Set HTTP client timeout: 2.0s.\n3. Offload downstream calls to background worker queue."}</pre>
                                                     </div>
                                                 ) : remediation?.patch_diff ? (
                                                     <pre className="text-emerald-400 whitespace-pre-wrap text-[11px] leading-relaxed">{remediation.patch_diff}</pre>
                                                 ) : (
                                                     <div className="py-4 text-center text-slate-500 italic text-[11px]">
-                                                        Awaiting load failure to generate automated prescription.
+                                                        Awaiting stress test breaking point to generate automated code patch.
                                                     </div>
                                                 )}
                                             </div>
 
                                             {patchStatusMsg && (
-                                                <div className="text-[11px] font-mono text-amber-300 py-1">
+                                                <div className="text-[11px] font-mono text-amber-300 py-0.5">
                                                     ⚙ {patchStatusMsg}
                                                 </div>
                                             )}
 
-                                            {/* Remediation Action Buttons */}
-                                            <div className="flex items-center space-x-2 pt-1">
-                                                {targetUrl && !targetUrl.includes("localhost:8002") && !targetUrl.includes("target-app") ? (
-                                                    <div className="w-full py-2 px-3 rounded text-center text-[10px] font-mono bg-white/5 text-amber-300 border border-amber-500/20">
-                                                        ℹ External Remote API — Container auto-patching disabled for third-party host
-                                                    </div>
-                                                ) : (
-                                                    <>
-                                                        <button
-                                                            onClick={applyRemediationPatch}
-                                                            disabled={!remediation || remediation.is_applied || patchApplying}
-                                                            className={`flex-1 py-2 px-3 rounded text-xs font-bold font-mono transition ${
-                                                                remediation && !remediation.is_applied
-                                                                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                                                                    : 'bg-white/5 text-slate-600 cursor-not-allowed'
-                                                            }`}
-                                                        >
-                                                            {patchApplying ? 'Applying...' : (remediation?.is_applied ? '✓ Patch Applied' : 'Apply Patch')}
-                                                        </button>
-
-                                                        <button
-                                                            onClick={runPostFixVerification}
-                                                            disabled={!remediation?.is_applied || isVerifying}
-                                                            className={`flex-1 py-2 px-3 rounded text-xs font-bold font-mono transition ${
-                                                                remediation?.is_applied && !isVerifying
-                                                                    ? 'bg-indigo-600 hover:bg-indigo-500 text-white'
-                                                                    : 'bg-white/5 text-slate-600 cursor-not-allowed'
-                                                            }`}
-                                                        >
-                                                            {isVerifying ? 'Verifying...' : 'Run Verification'}
-                                                        </button>
-                                                    </>
-                                                )}
-                                            </div>
-
                                             {/* REAL MEASURED BEFORE VS AFTER VERIFICATION COMPARISON */}
                                             {verification && (
-                                                <div className="mt-3 p-3 rounded bg-[#0d151e] border border-indigo-500/40 space-y-2 text-xs font-mono">
-                                                    <div className="flex items-center justify-between border-b border-white/[0.08] pb-1.5">
-                                                        <span className="font-bold text-indigo-300">Measured Verification Result:</span>
-                                                        <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${verification.success ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                                                <div className="mt-3 p-3 rounded bg-[#0b0f17] border border-white/[0.08] space-y-2 text-xs font-mono">
+                                                    <div className="flex items-center justify-between border-b border-white/[0.05] pb-1.5">
+                                                        <span className="font-semibold text-white">Verification Benchmark:</span>
+                                                        <span className={`px-2 py-0.5 rounded font-semibold text-[10px] ${verification.success ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
                                                             {verification.success ? 'PASSED STABILIZATION' : 'REGRESSION'}
                                                         </span>
                                                     </div>
 
                                                     <div className="grid grid-cols-2 gap-2 text-[11px]">
-                                                        <div className="p-2 rounded bg-black/40 border border-white/[0.04]">
+                                                        <div className="p-2 rounded bg-black/30 border border-white/[0.03]">
                                                             <div className="text-slate-500 uppercase text-[9px]">BEFORE FIX</div>
                                                             <div className="text-white mt-0.5">P95: <strong>{verification.before?.p95_ms}ms</strong></div>
                                                             <div className="text-slate-400">RPS: {verification.before?.rps}</div>
                                                             <div className="text-red-400">Error: {(verification.before?.error_rate * 100).toFixed(1)}%</div>
                                                         </div>
 
-                                                        <div className="p-2 rounded bg-emerald-950/20 border border-emerald-500/30">
+                                                        <div className="p-2 rounded bg-emerald-950/20 border border-emerald-500/20">
                                                             <div className="text-emerald-400 uppercase text-[9px]">AFTER FIX</div>
                                                             <div className="text-white mt-0.5">P95: <strong>{verification.after?.p95_ms}ms</strong></div>
                                                             <div className="text-slate-300">RPS: {verification.after?.rps}</div>
@@ -983,43 +1074,26 @@
                                                     <div className="text-[10px] text-slate-300 leading-relaxed pt-1">
                                                         {verification.summary}
                                                     </div>
-
-                                                    {/* Autonomous Loop Continuator: Run next stress test stage on improved API */}
-                                                    <div className="pt-2 border-t border-white/[0.08]">
-                                                        <button
-                                                            onClick={() => {
-                                                                // Increase concurrency limit to stress test the newly improved endpoint without re-injecting the old failure mode
-                                                                const nextConcurrency = Math.min(200, (currentTest?.breaking_point_users || 4) * 4);
-                                                                setConcurrencyInput(nextConcurrency);
-                                                                startStressTest("none", nextConcurrency);
-                                                            }}
-                                                            disabled={runState === 'RUNNING'}
-                                                            className="w-full py-2 px-3 rounded text-xs font-bold font-mono bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white transition flex items-center justify-center space-x-2 shadow-lg"
-                                                        >
-                                                            <span>🔁</span>
-                                                            <span>Run Next Stress Loop on Improved API (Ramp to {(currentTest?.breaking_point_users || 4) * 4} Users)</span>
-                                                        </button>
-                                                    </div>
                                                 </div>
                                             )}
                                         </div>
 
                                         {/* 4. REAL RUN TIMELINE & LOGS */}
-                                        <div className="devops-card p-4 space-y-2">
-                                            <div className="text-xs font-bold text-white uppercase font-mono flex items-center justify-between">
+                                        <div className="matte-card p-4 space-y-2">
+                                            <div className="text-xs font-semibold text-white uppercase font-mono flex items-center justify-between">
                                                 <span>DevOps Run Timeline</span>
                                                 <span className="text-[10px] text-slate-500">Live Engine Logs</span>
                                             </div>
-                                            <div className="bg-[#08090d] rounded p-2 text-[11px] font-mono text-slate-400 border border-white/[0.05] h-36 overflow-y-auto space-y-1">
+                                            <div className="bg-[#08090d] rounded p-2 text-[11px] font-mono text-slate-400 border border-white/[0.04] h-32 overflow-y-auto space-y-1">
                                                 {timeline.length > 0 ? (
                                                     timeline.map((item, idx) => (
                                                         <div key={idx} className="flex items-start space-x-2">
                                                             <span className="text-slate-600 shrink-0">{item.time}</span>
-                                                            <span className={`shrink-0 font-bold text-[9px] px-1 rounded ${
-                                                                item.tag === 'ALERT' ? 'bg-red-500/20 text-red-400' :
-                                                                item.tag === 'AI' ? 'bg-indigo-500/20 text-indigo-400' :
-                                                                item.tag === 'SUCCESS' || item.tag === 'VERIFIED' ? 'bg-emerald-500/20 text-emerald-400' :
-                                                                'bg-white/10 text-slate-300'
+                                                            <span className={`shrink-0 font-semibold text-[9px] px-1 rounded ${
+                                                                item.tag === 'ALERT' ? 'bg-red-500/10 text-red-400' :
+                                                                item.tag === 'AI' ? 'bg-indigo-500/10 text-indigo-400' :
+                                                                item.tag === 'SUCCESS' || item.tag === 'VERIFIED' ? 'bg-emerald-500/10 text-emerald-400' :
+                                                                'bg-white/5 text-slate-300'
                                                             }`}>
                                                                 {item.tag}
                                                             </span>
@@ -1040,13 +1114,13 @@
                         ) : activeNav === "grafana" ? (
                             /* FULL GRAFANA OBSERVABILITY SUITE VIEW */
                             <div className="p-6 space-y-6 max-w-[1700px] w-full mx-auto">
-                                <div className="devops-card p-5 space-y-4">
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/[0.08]">
+                                <div className="matte-card p-5 space-y-4">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/[0.05]">
                                         <div>
                                             <div className="flex items-center space-x-2">
                                                 <span className="text-lg">📊</span>
-                                                <h2 className="text-lg font-bold text-white">Grafana Observability Suite</h2>
-                                                <span className="text-[10px] font-mono bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded border border-orange-500/30">
+                                                <h2 className="text-base font-semibold text-white">Grafana Observability Suite</h2>
+                                                <span className="text-[10px] font-mono bg-orange-500/10 text-orange-400 px-2 py-0.5 rounded border border-orange-500/20">
                                                     LIVE PROVISIONED
                                                 </span>
                                             </div>
@@ -1058,7 +1132,7 @@
                                         <div className="flex items-center space-x-3 font-mono text-xs">
                                             <button
                                                 onClick={() => setGrafanaRefreshKey(Date.now())}
-                                                className="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white transition flex items-center space-x-1.5"
+                                                className="px-3 py-1.5 rounded bg-white/5 hover:bg-white/10 text-white transition flex items-center space-x-1.5 border border-white/[0.05]"
                                             >
                                                 <span>🔄</span>
                                                 <span>Refresh Dashboard</span>
@@ -1067,7 +1141,7 @@
                                                 href="http://localhost:3000/d/loadmind-observability/loadmind-performance-stress-observability?orgId=1&refresh=1s"
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="px-3 py-1.5 rounded bg-orange-600 hover:bg-orange-500 text-white font-bold transition flex items-center space-x-1.5"
+                                                className="px-3 py-1.5 rounded bg-orange-600 hover:bg-orange-500 text-white font-semibold transition flex items-center space-x-1.5"
                                             >
                                                 <span>Launch Full Grafana UI ↗</span>
                                             </a>
@@ -1075,7 +1149,7 @@
                                     </div>
 
                                     {/* Full Embedded Grafana Dashboard */}
-                                    <div className="w-full h-[760px] rounded border border-white/[0.08] overflow-hidden bg-[#0a0c10] shadow-2xl">
+                                    <div className="w-full h-[760px] rounded border border-white/[0.05] overflow-hidden bg-[#08090d]">
                                         <iframe
                                             src={`http://localhost:3000/d/loadmind-observability/loadmind-performance-stress-observability?orgId=1&refresh=1s&theme=dark&kiosk&t=${grafanaRefreshKey}`}
                                             className="w-full h-full border-0"
@@ -1087,17 +1161,17 @@
                         ) : (
                             /* AI INCIDENT MEMORY & SELF-LEARNING EXPLORER VIEW */
                             <div className="p-6 space-y-6 max-w-6xl w-full mx-auto">
-                                <div className="devops-card p-5 space-y-4">
-                                    <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+                                <div className="matte-card p-5 space-y-4">
+                                    <div className="flex items-center justify-between pb-3 border-b border-white/[0.05]">
                                         <div>
-                                            <h2 className="text-lg font-bold text-white">Hybrid AI Incident Memory & Self-Learning System</h2>
+                                            <h2 className="text-base font-semibold text-white">Hybrid AI Incident Memory & Self-Learning System</h2>
                                             <p className="text-xs text-slate-400 mt-0.5">
                                                 ChromaDB (Vector Failure Signatures) + PostgreSQL (Learned Patterns History)
                                             </p>
                                         </div>
                                         <button 
                                             onClick={() => setActiveNav("dashboard")}
-                                            className="px-3 py-1.5 rounded text-xs font-mono bg-white/10 hover:bg-white/20 text-white transition"
+                                            className="px-3 py-1.5 rounded text-xs font-mono bg-white/5 hover:bg-white/10 text-white transition border border-white/[0.05]"
                                         >
                                             ← Back to Stress Dashboard
                                         </button>
@@ -1105,19 +1179,19 @@
 
                                     {/* Stats row */}
                                     <div className="grid grid-cols-3 gap-4 font-mono text-center">
-                                        <div className="devops-card-subtle p-3">
+                                        <div className="matte-card-subtle p-3">
                                             <div className="text-[10px] text-slate-400 uppercase">Total Incidents Stored</div>
-                                            <div className="text-xl font-bold text-indigo-400 mt-1">
+                                            <div className="text-xl font-bold text-white mt-1">
                                                 {incidentsList.length || memoryStats?.total_incidents_stored || 0}
                                             </div>
                                         </div>
-                                        <div className="devops-card-subtle p-3">
+                                        <div className="matte-card-subtle p-3">
                                             <div className="text-[10px] text-slate-400 uppercase">Learned Signatures in ChromaDB</div>
                                             <div className="text-xl font-bold text-emerald-400 mt-1">
                                                 {memoryStats?.signatures_learned || memoryStats?.patterns?.length || 0}
                                             </div>
                                         </div>
-                                        <div className="devops-card-subtle p-3">
+                                        <div className="matte-card-subtle p-3">
                                             <div className="text-[10px] text-slate-400 uppercase">Embedding Vector Dimension</div>
                                             <div className="text-xs font-bold text-slate-200 mt-2">
                                                 all-MiniLM-L6-v2 (384-d)
@@ -1127,17 +1201,17 @@
 
                                     {/* Incident History List */}
                                     <div className="space-y-3 pt-2">
-                                        <div className="text-xs font-bold text-slate-300 uppercase font-mono">
+                                        <div className="text-xs font-semibold text-slate-300 uppercase font-mono">
                                             Learned Failure Signatures & Recalled Remediations
                                         </div>
 
                                         {incidentsList.length > 0 ? (
                                             incidentsList.map((inc) => (
-                                                <div key={inc.id} className="p-3.5 rounded-lg bg-[#0e121a] border border-white/[0.06] space-y-2 text-xs font-mono">
+                                                <div key={inc.id} className="p-3.5 rounded bg-[#12141c] border border-white/[0.04] space-y-2 text-xs font-mono">
                                                     <div className="flex items-center justify-between">
                                                         <div className="flex items-center space-x-2">
-                                                            <span className="text-indigo-400 font-bold">Incident #{inc.id}</span>
-                                                            <span className="text-slate-300 font-bold">{inc.name || inc.failure_mode}</span>
+                                                            <span className="text-white font-semibold">Incident #{inc.id}</span>
+                                                            <span className="text-slate-300 font-semibold">{inc.name || inc.failure_mode}</span>
                                                         </div>
                                                         <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">
                                                             Stored in ChromaDB + Postgres
@@ -1148,7 +1222,7 @@
                                                         <div>Target: <span className="text-white">{inc.target_app_url}</span></div>
                                                         <div>Breaking Point: <span className="text-white">{inc.breaking_point_users || 'N/A'} users</span></div>
                                                         <div>P95 Latency: <span className="text-white">{inc.p95_ms || 'N/A'} ms</span></div>
-                                                        <div>Root Cause: <span className="text-indigo-300 font-bold">{inc.diagnosis || inc.failure_mode}</span></div>
+                                                        <div>Root Cause: <span className="text-slate-200 font-semibold">{inc.diagnosis || inc.failure_mode}</span></div>
                                                     </div>
                                                 </div>
                                             ))
@@ -1163,7 +1237,7 @@
                         )}
 
                         {/* FOOTER */}
-                        <footer className="mt-auto px-6 py-4 border-t border-white/[0.05] flex items-center justify-between text-[10px] text-slate-500 font-mono">
+                        <footer className="mt-auto px-6 py-4 border-t border-white/[0.03] flex items-center justify-between text-[10px] text-slate-500 font-mono">
                             <div>LOADMIND DEVOPS AUTOMATION • SIMULATE ➔ OBSERVE ➔ DETECT ➔ DIAGNOSE ➔ REMEDIATE ➔ LEARN</div>
                             <div>BREAKING THRESHOLD: P95 &gt; 1000ms</div>
                         </footer>
