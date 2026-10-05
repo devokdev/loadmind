@@ -435,8 +435,11 @@
                 ctaMode = "COMPLETED";
             } else if (remediation?.is_applied || runState === "PATCH_APPLIED") {
                 ctaMode = "VERIFY";
-            } else if (hasBreakingPoint || remediation || runState === "BREAKING_POINT_DETECTED" || runState === "DIAGNOSIS_READY" || runState === "PATCH_READY") {
+            } else if (hasBreakingPoint && (remediation || runState === "BREAKING_POINT_DETECTED" || runState === "DIAGNOSIS_READY" || runState === "PATCH_READY")) {
                 ctaMode = "APPLY_PATCH";
+            } else if (currentTest && currentTest.status === "completed" && !hasBreakingPoint) {
+                // All stages passed under 1000ms - system is healthy, allow re-running or ramping up
+                ctaMode = "RUN";
             }
 
             return (
