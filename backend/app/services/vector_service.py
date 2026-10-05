@@ -104,5 +104,17 @@ class VectorService:
             for sim, item in scored[:n_results]
         ]
 
+    def clear_memory(self):
+        self.in_memory_store = []
+        if self._connect():
+            try:
+                self.client.delete_collection("loadmind_failures")
+                self.collection = self.client.get_or_create_collection(
+                    name="loadmind_failures",
+                    embedding_function=self.ef
+                )
+            except Exception:
+                pass
+
 vector_service = VectorService()
 

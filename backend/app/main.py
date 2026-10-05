@@ -638,6 +638,37 @@ def get_learning_stats(db: Session = Depends(get_db)):
         ]
     }
 
+@app.post("/api/history/clear")
+def clear_history_and_reset(db: Session = Depends(get_db)):
+    # Clear database records
+    db.query(models.Remediation).delete()
+    db.query(models.Diagnosis).delete()
+    db.query(models.LearnedPattern).delete()
+    db.query(models.Experiment).delete()
+    db.commit()
+
+    # Clear in-memory telemetry streams
+    active_metrics_stream.clear()
+    active_tests_cancel_flags.clear()
+
+    # Reset vector service memory
+    try:
+        from services.vector_service import vector_service
+        vector_service.clear_memory()
+    except Exception:
+        pass
+
+    # Reset target-app failure mode and files to default
+    try:
+        docker_service.set_target_failure_mode("none")
+    except Exception:
+        pass
+
+    return {
+        "status": "cleared",
+        "message": "All incident history, learned vectors, and sample target states have been cleanly reset."
+    }
+
 @app.get("/api/health")
 def health():
     return {

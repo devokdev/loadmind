@@ -158,8 +158,8 @@ def get_orders(user_id: int = None, db: Session = Depends(get_db)):
 @app.get("/checkout/process")
 async def checkout_process():
     if CURRENT_FAILURE_MODE == "blocking_async":
-        # Synchronously block the event loop
-        time.sleep(1.0)
+        # Realistic synchronous computation/sleep that allows 2-4 users but saturates event loop at higher concurrency
+        time.sleep(0.18)
         return {"status": "processed", "type": "blocking"}
     else:
         # Fast non-blocking async execution
@@ -170,11 +170,11 @@ async def checkout_process():
 @app.get("/db-status")
 def get_db_status(db: Session = Depends(get_db)):
     if CURRENT_FAILURE_MODE == "db_pool":
-        # Sleep while holding DB session open to simulate a slow operation keeping DB connection occupied
+        # Simulates a slow transactional lock holding DB session open
         try:
-            db.execute(text("SELECT pg_sleep(2.0);"))
+            db.execute(text("SELECT pg_sleep(0.35);"))
         except Exception:
-            time.sleep(2.0)
+            time.sleep(0.35)
             db.execute(text("SELECT 1;"))
     else:
         db.execute(text("SELECT 1;"))
@@ -184,13 +184,9 @@ def get_db_status(db: Session = Depends(get_db)):
 @app.get("/payments/process")
 async def process_external_payment():
     if CURRENT_FAILURE_MODE == "high_network_latency":
-        # Un-patched Client: Synchronously calls external slow public gateway (1.0s network delay), blocking server threads
-        import requests as sync_req
-        try:
-            res = sync_req.get("https://httpbin.org/delay/1", timeout=5.0)
-            return {"payment_status": "authorized", "gateway": "public_httpbin", "mode": "unshielded_sync"}
-        except Exception as e:
-            raise HTTPException(status_code=504, detail="Downstream Payment Gateway Timeout")
+        # Un-patched Client: Synchronously blocks server worker thread for 0.25s, causing queue build up under load
+        time.sleep(0.25)
+        return {"payment_status": "authorized", "gateway": "public_httpbin", "mode": "unshielded_sync"}
     else:
         # Patched Client: Uses fast non-blocking async client with circuit breaker timeout & cache shield
         await asyncio.sleep(0.02)

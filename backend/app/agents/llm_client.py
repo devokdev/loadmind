@@ -19,42 +19,52 @@ class LLMClient:
             "Content-Type": "application/json"
         }
 
-        sys_msg = system_instruction or "You are the LoadMind Autonomous AI Diagnostician. Respond in raw JSON format only matching the requested schema. Do not enclose in markdown blocks."
+        sys_msg = system_instruction or "You are the LoadMind Autonomous AI Diagnostician and DevOps Performance Expert. Provide deep, specific, non-templated root-cause analysis based on telemetry data. Respond in raw JSON format only matching the requested schema. Do not enclose in markdown blocks."
 
         messages = [
             {"role": "system", "content": sys_msg},
             {"role": "user", "content": prompt}
         ]
 
-        payload = {
-            "model": self.model,
-            "messages": messages,
-            "temperature": 0.1,
-            "max_tokens": 1024
-        }
+        candidate_models = [self.model, "llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
+        last_exception = None
 
-        try:
-            res = requests.post(self.api_url, headers=headers, json=payload, timeout=12)
-            if res.status_code == 200:
-                data = res.json()
-                content = data["choices"][0]["message"]["content"]
-                # Strip think tags if model outputs them
-                content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
-                # Strip markdown fences if present
-                if content.startswith("```json"):
-                    content = content[7:]
-                if content.startswith("```"):
-                    content = content[3:]
-                if content.endswith("```"):
-                    content = content[:-3]
-                content = content.strip()
-                return content
-            else:
-                print(f"Groq API call returned status {res.status_code}: {res.text}")
-                raise Exception(f"Groq API error: {res.status_code}")
-        except Exception as e:
-            print(f"Groq generation error: {e}")
-            raise e
+        for m in candidate_models:
+            if not m:
+                continue
+            payload = {
+                "model": m,
+                "messages": messages,
+                "temperature": 0.4,
+                "max_tokens": 1024
+            }
+
+            try:
+                res = requests.post(self.api_url, headers=headers, json=payload, timeout=8)
+                if res.status_code == 200:
+                    data = res.json()
+                    content = data["choices"][0]["message"]["content"]
+                    # Strip think tags if model outputs them
+                    content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+                    # Strip markdown fences if present
+                    if content.startswith("```json"):
+                        content = content[7:]
+                    if content.startswith("```"):
+                        content = content[3:]
+                    if content.endswith("```"):
+                        content = content[:-3]
+                    content = content.strip()
+                    return content
+                else:
+                    print(f"Groq API call model {m} returned status {res.status_code}: {res.text}")
+                    last_exception = Exception(f"Groq status: {res.status_code}")
+            except Exception as e:
+                print(f"Groq generation error on {m}: {e}")
+                last_exception = e
+
+        if last_exception:
+            raise last_exception
+        raise Exception("Failed to generate from any Groq model")
 
 llm_client = LLMClient()
 

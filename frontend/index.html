@@ -400,6 +400,23 @@
                 setTestTimer("00:00");
             };
 
+            const clearSystemHistoryAndReset = async () => {
+                if (runState === "RUNNING") return;
+                try {
+                    addTimelineEvent("Resetting all database history, vectors & restoring sample APIs...", "RESET");
+                    const res = await fetch("http://localhost:8001/api/history/clear", { method: "POST" });
+                    if (res.ok) {
+                        resetToNewRun();
+                        await loadInitialSystemData();
+                        setGrafanaRefreshKey(Date.now());
+                        addTimelineEvent("Environment cleanly reset to factory defaults ✓", "SUCCESS");
+                    }
+                } catch (e) {
+                    console.error("Clear history error:", e);
+                    addTimelineEvent(`Reset error: ${e.message}`, "ERROR");
+                }
+            };
+
             const latestMetric = metrics.length > 0 ? metrics[metrics.length - 1] : null;
             const statusCodeCounts = latestMetric?.status_codes || {};
             const totalStatusReqs = Object.values(statusCodeCounts).reduce((a, b) => a + b, 0) || 1;
@@ -570,6 +587,16 @@
                                 <div className="text-slate-400 pl-3 border-l border-white/[0.05]">
                                     Duration: <span className="text-white font-semibold">{testTimer}</span>
                                 </div>
+
+                                <button
+                                    onClick={clearSystemHistoryAndReset}
+                                    disabled={runState === 'RUNNING'}
+                                    title="Reset all past incidents, vector memory and restore sample target state"
+                                    className="ml-2 px-2.5 py-1 rounded text-[11px] font-mono bg-white/[0.04] hover:bg-red-500/10 hover:text-red-300 hover:border-red-500/30 text-slate-400 border border-white/[0.05] transition flex items-center space-x-1.5"
+                                >
+                                    <span>🗑️</span>
+                                    <span>Clear History</span>
+                                </button>
                             </div>
                         </header>
 
@@ -813,18 +840,19 @@
                                                     <span className="text-slate-500">THRESHOLD: P95 &gt; 1000MS</span>
                                                 </div>
                                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 font-mono">
-                                                    {[
-                                                        { stage: 1, users: Math.max(1, Math.round(concurrencyInput * 0.15)) },
-                                                        { stage: 2, users: Math.max(2, Math.round(concurrencyInput * 0.30)) },
-                                                        { stage: 3, users: Math.max(3, Math.round(concurrencyInput * 0.55)) },
-                                                        { stage: 4, users: Math.max(4, Math.round(concurrencyInput * 0.80)) },
-                                                        { stage: 5, users: concurrencyInput }
-                                                    ].map(({ stage, users }) => {
+                                                    {(latestMetric?.stages || [
+                                                        Math.max(1, Math.round(concurrencyInput * 0.20)),
+                                                        Math.max(2, Math.round(concurrencyInput * 0.40)),
+                                                        Math.max(3, Math.round(concurrencyInput * 0.70)),
+                                                        Number(concurrencyInput),
+                                                        Math.max(Number(concurrencyInput) + 1, Math.round(concurrencyInput * 1.30))
+                                                    ]).map((stageUsers, idx) => {
+                                                        const stage = idx + 1;
                                                         const currentStage = latestMetric?.current_stage || 0;
                                                         const brokeAtUsers = currentTest?.breaking_point_users;
-                                                        const isBrokeStage = brokeAtUsers && users === brokeAtUsers;
-                                                        const isSkipped = brokeAtUsers && users > brokeAtUsers;
-                                                        const isPassed = !isSkipped && !isBrokeStage && ((currentTest && !currentTest.breaking_point_users) || (currentStage > stage));
+                                                        const isBrokeStage = Boolean(brokeAtUsers && stageUsers === brokeAtUsers);
+                                                        const isSkipped = Boolean(brokeAtUsers && stageUsers > brokeAtUsers);
+                                                        const isPassed = !isSkipped && !isBrokeStage && ((currentTest && currentTest.status === "completed" && !currentTest.breaking_point_users) || (currentStage > stage));
                                                         const isActive = runState === 'RUNNING' && currentStage === stage && !isBrokeStage;
                                                         
                                                         let badgeBg = 'bg-[#12141c] border-white/[0.04] text-slate-500';
@@ -842,7 +870,7 @@
                                                         } else if (isActive) {
                                                             badgeBg = 'bg-amber-500/10 border-amber-500/30 text-amber-300';
                                                             statusLabel = '● ACTIVE';
-                                                            statusColor = 'text-amber-400';
+                                                            statusColor = 'text-amber-400 font-semibold';
                                                         } else if (isPassed) {
                                                             badgeBg = 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300';
                                                             statusLabel = '✓ PASS';
@@ -852,7 +880,7 @@
                                                         return (
                                                             <div key={stage} className={`p-2.5 rounded border text-center transition ${badgeBg}`}>
                                                                 <div className="text-[10px] text-slate-400 font-sans">Stage {stage}</div>
-                                                                <div className="text-sm font-bold text-white my-0.5">{users} Users</div>
+                                                                <div className="text-sm font-bold text-white my-0.5">{stageUsers} Users</div>
                                                                 <div className={`text-[10px] ${statusColor}`}>{statusLabel}</div>
                                                             </div>
                                                         );
